@@ -210,7 +210,7 @@ def main() -> None:
 
     # Save wells images
     for i, well in enumerate(wells):
-        filename = f"{basename(args.input_path)}_well_{i:04d}.tiff"
+        filename = f"{basename(args.input_path).split(".")[0]}_well_{i:04d}.tiff"
         imwrite(join(output, filename), well)
     
     print("Done!")
