@@ -88,18 +88,11 @@ def detect_wells_interactive(image: ndarray) -> list[ndarray]:
         print("No circles detected with given parameters.")
         exit()
 
-    nrows = 1 if len(circles) <= 3 else len(circles) // 3
-    ncols = 3 if len(circles) >= 3 else len(circles)
-
-    fig, axs = plt.subplots(nrows, ncols)
-
+    plt.figure()
     for i, circle in enumerate(circles):
-        if len(circles) <= 3:
-            axs[i].imshow(circle)
-            axs[i].set_title(f"Well {i}")
-        else:
-            axs[i//ncols, i % ncols].imshow(circle)
-            axs[i//ncols, i % ncols].set_title(f"Well {i}")
+        plt.subplot(1, len(circles), i + 1)
+        plt.imshow(circle[..., ::-1])
+        plt.title(f"Detected well {i}")
     plt.show()
 
     return circles
