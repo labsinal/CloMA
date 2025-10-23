@@ -45,8 +45,12 @@ def detect_wells_interactive(image: ndarray) -> list[ndarray]:
         if input_value.casefold() == "ok":
             break
         else:
-            sigma = int(input_value)
-            edges = canny(image_gray, sigma)
+            try:
+                sigma = int(input_value)
+                edges = canny(image_gray, sigma)
+            except:
+                print("Invalid sigma value.")
+                continue
     
     # Applt hough transform
     radius = 300
@@ -80,7 +84,11 @@ def detect_wells_interactive(image: ndarray) -> list[ndarray]:
 
     circles = [image[circle["cy"] - circle["radii"]:circle["cy"] + circle["radii"], circle["cx"] - circle["radii"]:circle["cx"] + circle["radii"]] for circle in circles_info]
 
-    nrows = len(circles) // 3
+    if len(circles) == 0:
+        print("No circles detected with given parameters.")
+        exit()
+
+    nrows = 1 if len(circles) <= 3 else len(circles) // 3
     ncols = 3 if len(circles) >= 3 else len(circles)
 
     fig, axs = plt.subplots(nrows, ncols)
@@ -130,6 +138,10 @@ def detect_wells(image: ndarray, well_radius: int, sigma:float) -> list[ndarray]
     circles_info = list(filter(circles_filter, circles_info))
 
     circles = [image[circle["cy"] - circle["radii"]:circle["cy"] + circle["radii"], circle["cx"] - circle["radii"]:circle["cx"] + circle["radii"]] for circle in circles_info]
+
+    if circles == []:
+        print("No circles detected with given parameters.")
+        exit()
 
     return circles
 
