@@ -13,6 +13,7 @@ from skimage.filters import median
 from os.path import join, basename, dirname 
 from cellpose import models, io
 from torch import cuda
+import matplotlib.pyplot as plt
 
 ######################################
 # Define helper functions
@@ -35,7 +36,8 @@ def apply_cellpose(image:ndarray) -> ndarray:
 
     return masks, flows
 
-def segment_well_colonies(image:ndarray, output_dir:str) -> ndarray:
+def segment_well_colonies(image:ndarray, output_dir:str,
+                          radius:int, shrink:float) -> ndarray:
     """
     Function that segments well colonies photo
 
@@ -62,16 +64,14 @@ def segment_well_colonies(image:ndarray, output_dir:str) -> ndarray:
     # Create colonies image
     colonies = -cl1 - dilated
 
-    # Create circle mas
+    # Create circle mask
     rows, cols = colonies.shape
     cy, cx = rows // 2, cols // 2
     Y, X = ogrid[:rows, :cols]
-    circle_mask = (X - cx)**2 + (Y - cy)**2 <= (550 * 0.8)**2
+    circle_mask = (X - cx)**2 + (Y - cy)**2 <= (radius * (1-shrink))**2
 
     # Mask segmentation
     masked_colonies = where(circle_mask, colonies, 0)
-
-    imwrite("masked_colonies.tif", masked_colonies)
 
     masks, flows = apply_cellpose(masked_colonies)
 
@@ -98,6 +98,20 @@ def main() -> None:
                         dest="input_path",
                         help="Path to image to be segmented")
     
+    parser.add_argument("-d", "--diameter",
+                        action="store",
+                        required=False,
+                        type=int,
+                        dest="diameter",
+                        help="Diameter for masking")
+    
+    parser.add_argument("-s", "--shrink",
+                        action="store",
+                        required=False,
+                        type=float,
+                        dest="shrink",
+                        help="Shring percentage for masking 1 = all masked, 0 = radius mask")
+
     parser.add_argument("-o", "--output_image",
                         action="store",
                         required=False,
@@ -112,8 +126,11 @@ def main() -> None:
 
     output_dir = args.output_path if args.output_path is not None else join(dirname(args.input_path), f"segmented_{basename(args.input_path).split(".")[0]}.tif")
 
+    radius = args.diameter / 2 if args.diameter is not None else image.shape[0] / 2
+    shrink = args.shrink if args.shrink is not None else 0
+
     # apply segmentation algorithm
-    segment_well_colonies(image, output_dir=output_dir)
+    segment_well_colonies(image, output_dir=output_dir, radius = radius, shrink = shrink)
 
 ######################################
 # Call main function id runned directly

@@ -14,11 +14,12 @@ from skimage.feature import peak_local_max
 from skimage.segmentation import watershed
 from scipy.ndimage import distance_transform_edt, label
 from os.path import join, basename, dirname 
+import matplotlib.pyplot as plt
 
 ######################################
 # Define helper functions
 
-def segment_well_colonies(image:ndarray) -> ndarray:
+def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     """
     Function that segments well colonies photo
 
@@ -49,10 +50,13 @@ def segment_well_colonies(image:ndarray) -> ndarray:
     rows, cols = colonies.shape
     cy, cx = rows // 2, cols // 2
     Y, X = ogrid[:rows, :cols]
-    circle_mask = (X - cx)**2 + (Y - cy)**2 <= (550 * 0.8)**2
+    circle_mask = (X - cx)**2 + (Y - cy)**2 <= (radius * (1-shrink))**2
 
     # Mask segmentation
     masked_colonies = where(circle_mask, colonies, 0)
+
+    plt.imshow(masked_colonies)
+    plt.show()
 
     # Binarize segmentation
     thresh = threshold_otsu(masked_colonies)
@@ -92,6 +96,20 @@ def main() -> None:
                         dest="input_path",
                         help="Path to image to be segmented")
     
+    parser.add_argument("-r", "--radius",
+                        action="store",
+                        required=False,
+                        type=int,
+                        dest="radius",
+                        help="Radius for masking")
+    
+    parser.add_argument("-s", "--shrink",
+                        action="store",
+                        required=False,
+                        type=float,
+                        dest="shrink",
+                        help="Shring percentage for masking 1 = all masked, 0 = radius mask")
+    
     parser.add_argument("-o", "--output_image",
                         action="store",
                         required=False,
@@ -104,8 +122,10 @@ def main() -> None:
     # open image
     image = imread(args.input_path)
 
+    radius = args.radius if args.radius is not None else image.shape[0]
+    shrink = args.shrink if args.shrink is not None else 0
     # apply segmentation algorithm
-    segmentation = segment_well_colonies(image)
+    segmentation = segment_well_colonies(image, radius = radius, shrink = shrink)
 
     # save segmentation
     if args.output_path:
