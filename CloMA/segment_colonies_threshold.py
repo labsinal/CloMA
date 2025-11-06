@@ -55,9 +55,6 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     # Mask segmentation
     masked_colonies = where(circle_mask, colonies, 0)
 
-    plt.imshow(masked_colonies)
-    plt.show()
-
     # Binarize segmentation
     thresh = threshold_otsu(masked_colonies)
     binary = masked_colonies > thresh
@@ -96,12 +93,12 @@ def main() -> None:
                         dest="input_path",
                         help="Path to image to be segmented")
     
-    parser.add_argument("-r", "--radius",
+    parser.add_argument("-d", "--diameter",
                         action="store",
                         required=False,
                         type=int,
-                        dest="radius",
-                        help="Radius for masking")
+                        dest="diameter",
+                        help="Diameter for masking")
     
     parser.add_argument("-s", "--shrink",
                         action="store",
@@ -122,7 +119,7 @@ def main() -> None:
     # open image
     image = imread(args.input_path)
 
-    radius = args.radius if args.radius is not None else image.shape[0]
+    radius = args.diameter / 2 if args.diameter is not None else image.shape[0] / 2
     shrink = args.shrink if args.shrink is not None else 0
     # apply segmentation algorithm
     segmentation = segment_well_colonies(image, radius = radius, shrink = shrink)
