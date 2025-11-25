@@ -37,14 +37,14 @@ def apply_cellpose(image:ndarray) -> ndarray:
     return masks, flows
 
 def segment_well_colonies(image:ndarray, output_dir:str,
-                          radius:int, shrink:float) -> ndarray:
+                          radius:int, shrink:float) -> None:
     """
     Function that segments well colonies photo
 
     Args:
         image:ndarray | well image as numpy array
     Returns
-    ndarray | segmented well image
+    None
     """
 
     # Create CLAHE filter instance
