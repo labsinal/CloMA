@@ -136,7 +136,7 @@ def main() -> None:
 
             current_df = cloma_interactive_pipeline(file, curr_output)
 
-            return_df = concat(return_df, current_df)
+            return_df = concat([return_df, current_df])
     else:
         return_df = cloma_interactive_pipeline(input_path, output_path)
     
