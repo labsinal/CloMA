@@ -8,6 +8,7 @@ Run CloMA pipeline interactively
 from preprocess.detect_well import detect_wells_interactive
 from preprocess.segmentation.segment_colonies_cellpose import segment_well_colonies
 from preprocess.filter_border_colonies import filter_border_colonies
+from feature_extraction.extract_features import extract_features
 from os import path
 from os import makedirs
 from glob import glob
@@ -15,6 +16,7 @@ from pandas import DataFrame
 from pandas import concat
 from cv2 import imread, imwrite
 from tifffile import imread as tifread
+from tifffile import imwrite as tifwrite
 
 ######################################
 # Define helper functions
@@ -43,20 +45,43 @@ def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
     makedirs(wells_dir, exist_ok=True)
     print(f"Saving wells to {wells_dir}")
 
+    print("\n" * 3)
+
+    print("Saving segmentations: \n")
+
+    # Save wells
     for i, well in enumerate(wells):
         filename = f"{path.basename(input).split(".")[0]}_well_{i:04d}.tiff"
-        imwrite(path.join(output, filename), well)
+        imwrite(path.join(wells_dir, filename), well)
 
         # run segmentation
-        radius = well.shape[0] / 2
-        segment_well_colonies(well, segmentation_dir, radius, 0)
+        radius = well.shape[0] // 2
+        segment_well_colonies(well, path.join(segmentation_dir, filename), radius, 0)
     
-    segmentations = list(map(tifread, glob(path.join(segmentation_dir, "*"))))
+    seg_files = glob(path.join(segmentation_dir, "*"))
 
+    segmentations = list(map(tifread, seg_files))
+
+    # Filter segmentations
     filtered_segmentations = list(map(lambda x:filter_border_colonies(x, radius-2), segmentations))
 
-    
+    # overwrite segmentation to filtered ones
+    for filtered_seg, filename in zip(filtered_segmentations, seg_files):
+        print(filename)
+        tifwrite(filename, filtered_seg)
 
+    # Extract features
+    complete_df = DataFrame()
+
+    for i, (well, seg) in enumerate(zip(wells, filtered_segmentations)):
+        features = extract_features(seg, well)
+        features["File"] = input
+        features["Well"] = i + 1
+    
+        complete_df = concat([complete_df, features])
+    
+    return complete_df
+    
 
 
 
@@ -96,7 +121,7 @@ def main() -> None:
         if not path.isdir(output_path):
             print("Output must be a directory!")
         else:
-            makedirs(output_path, exists_ok=True)
+            makedirs(output_path, exist_ok=True)
             break
 
     return_df = DataFrame()
@@ -105,15 +130,21 @@ def main() -> None:
 
         for file in sorted(glob(path.join(input_path, "*"))):
             
-            current_df = cloma_interactive_pipeline(file, output_path)
+            curr_output = path.join(output_path, path.basename(file).split(".")[0])
+
+            makedirs(curr_output, exist_ok=True)
+
+            current_df = cloma_interactive_pipeline(file, curr_output)
 
             return_df = concat(return_df, current_df)
     else:
         return_df = cloma_interactive_pipeline(input_path, output_path)
     
-    print(f"Saving results in: {output_path}")
+    save_file = path.join(output_path, "CloMA_table.csv")
 
-    return_df.to_csv(output_path, index=False)
+    print(f"Saving results in: {save_file}")
+
+    return_df.to_csv(save_file, index=False)
 
     print("\n" * 3)
     print("Done!")
