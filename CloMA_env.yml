@@ -1,4 +1,4 @@
-name: /home/frederico/envs/CloMA
+name: CloMA
 channels:
   - conda-forge
   - defaults
