@@ -59,7 +59,7 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     thresh = threshold_otsu(masked_colonies)
     binary = masked_colonies > thresh
     
-    return binary
+    return binary.astype(int)
 
 ######################################
 # Define main function
