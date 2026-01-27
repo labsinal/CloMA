@@ -4,17 +4,15 @@ Module that segment colonies from well images
 
 ######################################
 # imports
-from numpy import ndarray, copy, ogrid, where, ones, zeros
+from numpy import ndarray, copy, ogrid, where
 from cv2 import imread, imwrite
 from cv2 import createCLAHE
 from cv2 import cvtColor, COLOR_BGR2GRAY
 from skimage.morphology import reconstruction
 from skimage.filters import threshold_otsu
-from skimage.feature import peak_local_max
-from skimage.segmentation import watershed
-from scipy.ndimage import distance_transform_edt, label
+from skimage.segmentation import expand_labels
+from scipy.ndimage import label
 from os.path import join, basename, dirname 
-import matplotlib.pyplot as plt
 
 ######################################
 # Define helper functions
@@ -59,7 +57,14 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     thresh = threshold_otsu(masked_colonies)
     binary = masked_colonies > thresh
     
-    return binary.astype(int)
+    dilated_masks = expand_labels(binary, distance=5)
+
+    # separate masks via touching
+    labels = label(dilated_masks)
+
+    masked_labels = where(binary, dilated_masks, 0)
+
+    return masked_labels
 
 ######################################
 # Define main function
