@@ -46,7 +46,7 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     # Create colonies image
     colonies = -cl1 - dilated
 
-    # Create circle mas
+    # Create circle mask
     rows, cols = colonies.shape
     cy, cx = rows // 2, cols // 2
     Y, X = ogrid[:rows, :cols]
@@ -58,20 +58,8 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     # Binarize segmentation
     thresh = threshold_otsu(masked_colonies)
     binary = masked_colonies > thresh
-
-    # Calculate euclidean distance transform
-    distance = distance_transform_edt(binary)
-
-    # find local max to watershed
-    coords = peak_local_max(distance, footprint=ones((3, 3)), labels=binary)
-    mask = zeros(distance.shape, dtype=bool)
-    mask[tuple(coords.T)] = True
-    markers, _ = label(mask)
     
-    # Run watershed
-    labels = watershed(-distance, markers, mask=binary)
-
-    return labels
+    return binary
 
 ######################################
 # Define main function
