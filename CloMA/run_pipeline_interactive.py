@@ -6,7 +6,7 @@ Run CloMA pipeline interactively
 # imports
 
 from preprocess.detect_well import detect_wells_interactive
-from preprocess.segmentation.segment_colonies_cellpose import segment_well_colonies
+from preprocess.segmentation.segment_colonies_mixed import segment_well_colonies_hybrid
 from preprocess.filter_border_colonies import filter_border_colonies
 from feature_extraction.extract_features import extract_features
 from os import path
@@ -43,6 +43,7 @@ def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
     wells_dir = path.join(output, "wells")
     segmentation_dir = path.join(output, "segmentations")
     makedirs(wells_dir, exist_ok=True)
+    makedirs(segmentation_dir, exist_ok=True)
     print(f"Saving wells to {wells_dir}")
 
     print("\n" * 3)
@@ -56,14 +57,17 @@ def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
 
         # run segmentation
         radius = well.shape[0] // 2
-        segment_well_colonies(well, path.join(segmentation_dir, filename), radius, 0)
+        segmentation = segment_well_colonies_hybrid(well, radius)
+        filename = f"{path.basename(input).split(".")[0]}_labels_{i:04d}.tiff"
+        imwrite(path.join(segmentation_dir, filename), segmentation)
+        
     
     seg_files = glob(path.join(segmentation_dir, "*"))
 
     segmentations = list(map(tifread, seg_files))
 
     # Filter segmentations
-    filtered_segmentations = list(map(lambda x:filter_border_colonies(x, radius-2), segmentations))
+    filtered_segmentations = list(map(lambda x:filter_border_colonies(x, radius-100), segmentations))
 
     # overwrite segmentation to filtered ones
     for filtered_seg, filename in zip(filtered_segmentations, seg_files):
@@ -81,9 +85,6 @@ def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
         complete_df = concat([complete_df, features])
     
     return complete_df
-    
-
-
 
 ######################################
 # Define main function

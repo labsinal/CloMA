@@ -60,9 +60,9 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     dilated_masks = expand_labels(binary, distance=5)
 
     # separate masks via touching
-    labels = label(dilated_masks)
+    labels = label(dilated_masks)[0]
 
-    masked_labels = where(binary, dilated_masks, 0)
+    masked_labels = where(binary.astype(bool), labels, 0)
 
     return masked_labels
 
