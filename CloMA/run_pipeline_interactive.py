@@ -21,11 +21,12 @@ from tifffile import imwrite as tifwrite
 ######################################
 # Define helper functions
 
-def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
+
+def cloma_interactive_pipeline(input: str, output: str) -> DataFrame:
     """
     Run CloMA pipelina interactively
-    
-    :param input: (str) input_folder or file 
+
+    :param input: (str) input_folder or file
     :param multiple_sheets: (bool) wheter to save a single sheet or multiple
     :param output: (str|None) Where to save images, if None, save in input folder
     """
@@ -52,22 +53,23 @@ def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
 
     # Save wells
     for i, well in enumerate(wells):
-        filename = f"{path.basename(input).split(".")[0]}_well_{i:04d}.tiff"
+        filename = f"{path.basename(input).rsplit(".", 1)[0]}_well_{i:04d}.tiff"
         imwrite(path.join(wells_dir, filename), well)
 
         # run segmentation
         radius = well.shape[0] // 2
         segmentation = segment_well_colonies_hybrid(well, radius)
-        filename = f"{path.basename(input).split(".")[0]}_labels_{i:04d}.tiff"
+        filename = f"{path.basename(input).rsplit(".", 1)}_labels_{i:04d}.tiff"
         imwrite(path.join(segmentation_dir, filename), segmentation)
-        
-    
+
     seg_files = glob(path.join(segmentation_dir, "*"))
 
     segmentations = list(map(tifread, seg_files))
 
     # Filter segmentations
-    filtered_segmentations = list(map(lambda x:filter_border_colonies(x, radius-100), segmentations))
+    filtered_segmentations = list(
+        map(lambda x: filter_border_colonies(x, radius - 100), segmentations)
+    )
 
     # overwrite segmentation to filtered ones
     for filtered_seg, filename in zip(filtered_segmentations, seg_files):
@@ -81,13 +83,15 @@ def cloma_interactive_pipeline(input:str, output:str) -> DataFrame:
         features = extract_features(seg, well)
         features["File"] = input
         features["Well"] = i + 1
-    
+
         complete_df = concat([complete_df, features])
-    
+
     return complete_df
+
 
 ######################################
 # Define main function
+
 
 def main() -> None:
     """
@@ -96,7 +100,8 @@ def main() -> None:
 
     # print welcome message
     print("Welcome to      ")
-    print("""
+    print(
+        """
    █████████  ████           ██████   ██████   █████████  
   ███░░░░░███░░███          ░░██████ ██████   ███░░░░░███ 
  ███     ░░░  ░███   ██████  ░███░█████░███  ░███    ░███ 
@@ -107,12 +112,15 @@ def main() -> None:
   ░░░░░░░░░  ░░░░░  ░░░░░░  ░░░░░     ░░░░░ ░░░░░   ░░░░░ 
                                                           
                                                           
-                                                          """)
-    
+                                                          """
+    )
+
     # Get user inputs
-    input_path = input("Paste here the path to your image or folder containing images:\n")
+    input_path = input(
+        "Paste here the path to your image or folder containing images:\n"
+    )
     print("-" * 30)
-    
+
     while True:
         print("\n" * 3)
         output_path = input("Paste here the path to save the output:\n")
@@ -130,7 +138,7 @@ def main() -> None:
     if path.isdir(input_path):
 
         for file in sorted(glob(path.join(input_path, "*"))):
-            
+
             curr_output = path.join(output_path, path.basename(file).split(".")[0])
 
             makedirs(curr_output, exist_ok=True)
@@ -140,7 +148,7 @@ def main() -> None:
             return_df = concat([return_df, current_df])
     else:
         return_df = cloma_interactive_pipeline(input_path, output_path)
-    
+
     save_file = path.join(output_path, "CloMA_table.csv")
 
     print(f"Saving results in: {save_file}")
@@ -149,6 +157,7 @@ def main() -> None:
 
     print("\n" * 3)
     print("Done!")
+
 
 ######################################
 # Call main function id runned directly
