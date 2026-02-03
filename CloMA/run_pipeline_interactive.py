@@ -59,7 +59,7 @@ def cloma_interactive_pipeline(input: str, output: str) -> DataFrame:
         # run segmentation
         radius = well.shape[0] // 2
         segmentation = segment_well_colonies_hybrid(well, radius)
-        filename = f"{path.basename(input).rsplit(".", 1)}_labels_{i:04d}.tiff"
+        filename = f"{path.basename(input).rsplit(".", 1)[0]}_labels_{i:04d}.tiff"
         imwrite(path.join(segmentation_dir, filename), segmentation)
 
     seg_files = glob(path.join(segmentation_dir, "*"))
@@ -139,7 +139,7 @@ def main() -> None:
 
         for file in sorted(glob(path.join(input_path, "*"))):
 
-            curr_output = path.join(output_path, path.basename(file).split(".")[0])
+            curr_output = path.join(output_path, path.basename(file).rsplit(".", 1)[0])
 
             makedirs(curr_output, exist_ok=True)
 
