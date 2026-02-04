@@ -68,7 +68,7 @@ def cloma_interactive_pipeline(input: str, output: str) -> DataFrame:
 
     # Filter segmentations
     filtered_segmentations = list(
-        map(lambda x: filter_border_colonies(x, radius - 100), segmentations)
+        map(lambda x: filter_border_colonies(x, radius - 10), segmentations)
     )
 
     # overwrite segmentation to filtered ones
@@ -137,7 +137,10 @@ def main() -> None:
 
     if path.isdir(input_path):
 
+        image_extensions = {'.tiff', '.tif', '.jpg', '.jpeg', '.png', '.bmp'}
         for file in sorted(glob(path.join(input_path, "*"))):
+            if path.splitext(file)[1].lower() not in image_extensions:
+                continue
 
             curr_output = path.join(output_path, path.basename(file).rsplit(".", 1)[0])
 
