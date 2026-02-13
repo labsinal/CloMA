@@ -122,8 +122,6 @@ def segment_well_colonies_hybrid(image: ndarray,
             final_labels[subregion] = current_label
             current_label += 1
 
-    final_labels = final_labels + labels_thresh
-
     final_labels, min_area = remove_small_relative(final_labels)
 
     print(f"Filtering colonies smaller than: {min_area} px")

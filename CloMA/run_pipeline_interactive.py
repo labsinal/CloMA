@@ -68,7 +68,7 @@ def cloma_interactive_pipeline(input: str, output: str) -> DataFrame:
 
     # Filter segmentations
     filtered_segmentations = list(
-        map(lambda x: filter_border_colonies(x, radius - 10), segmentations)
+        map(lambda x: filter_border_colonies(x, radius - 100), segmentations)
     )
 
     # overwrite segmentation to filtered ones
