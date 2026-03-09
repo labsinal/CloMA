@@ -1,1 +1,1 @@
-from feature_extraction import extract_features
+from CloMA.feature_extraction.feature_extraction import extract_features

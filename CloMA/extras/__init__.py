@@ -1,3 +1,3 @@
-from well_detection import detect_wells
-from filter_border_colonies import filter_border_colonies
-from preprocess import preprocess_images
+from CloMA.extras.well_detection import detect_wells
+from CloMA.extras.filter_border_colonies import filter_border_colonies
+from CloMA.extras.preprocess import preprocess_images
