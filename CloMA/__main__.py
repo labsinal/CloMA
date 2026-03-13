@@ -1,6 +1,7 @@
 import typer
 from typing import Annotated
 import numpy as np
+from CloMA.extras.well_detection_interactive import WellDetectorGUI
 
 app = typer.Typer(add_completion = False)
 
@@ -14,12 +15,14 @@ def complete_pipeline(seg : Annotated[str, typer.Option(help="Path to segmentati
 
 
 @app.command()
-def well_detection(img : Annotated[str, typer.Option(help="Path to image to detect wells")], 
-                   output:Annotated[str, typer.Option(help="Path to folder where image paths will ve saved")]):
+def well_detection():
     """
-    Detects wells from images
+    Detects wells from images interactively
     """
-    ...
+    import tkinter as tk
+    root = tk.Tk()
+    app = WellDetectorGUI(root)
+    root.mainloop()
 
 @app.command()
 def preprocess_images(img : Annotated[str, typer.Option(help="Path to image to enhance")],
