@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class WellDetectorGUI:
 
-    def __init__(self, root):
+    def __init__(self, root, image_path=None, output_folder=None):
 
         self.root = root
         self.root.title("Well Detection Tester")
@@ -20,6 +20,9 @@ class WellDetectorGUI:
         self.image = None
         self.circles = []
         self.crops = []
+
+        self.image_path = image_path
+        self.output_folder = output_folder
 
         ###################################
         # Controls frame
@@ -60,6 +63,9 @@ class WellDetectorGUI:
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().pack(side=tk.LEFT)
 
+        if image_path is not None:
+            self.load_image_from_path(image_path)
+
     ###################################
     # Image loader
 
@@ -68,9 +74,19 @@ class WellDetectorGUI:
         path = filedialog.askopenfilename()
 
         if path:
-            self.image = cv2.imread(path)
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
-            self.update_plot(original=self.image)
+            self.load_image_from_path(path)
+
+    def load_image_from_path(self, path):
+
+        self.image = cv2.imread(path)
+
+        if self.image is None:
+            messagebox.showerror("Error", f"Could not load image:\n{path}")
+            return
+
+        self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+
+        self.update_plot(original=self.image)
 
     ###################################
     # Core detection
@@ -192,10 +208,12 @@ class WellDetectorGUI:
             messagebox.showinfo("Info", "No wells to save")
             return
 
-        folder = filedialog.askdirectory()
+        folder = self.output_folder
 
-        if not folder:
-            return
+        if folder is None:
+            folder = filedialog.askdirectory()
+            if not folder:
+                return
 
         os.makedirs(folder, exist_ok=True)
 
@@ -206,6 +224,9 @@ class WellDetectorGUI:
             cv2.imwrite(path, cv2.cvtColor(crop, cv2.COLOR_RGB2BGR))
 
         messagebox.showinfo("Done", f"Saved {len(self.crops)} wells")
+        
+        if self.output_folder is not None:
+            self.root.destroy()
 
 
 ###################################

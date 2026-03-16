@@ -49,15 +49,17 @@ def segment_well_colonies_hybrid(image: ndarray,
     - Cellpose used ONLY to split large touching colonies
     """
     # 1. Threshold segmentation 
+    colonies = image
 
-    clahe = createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
-    gray = clahe.apply(cvtColor(image, COLOR_BGR2GRAY))
+    if len(image.shape) > 2:
+        clahe = createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
+        gray = clahe.apply(cvtColor(image, COLOR_BGR2GRAY))
 
-    seed = copy(-gray)
-    seed[1:-1, 1:-1] = (-gray).min()
-    background = reconstruction(seed, -gray, method="dilation")
+        seed = copy(-gray)
+        seed[1:-1, 1:-1] = (-gray).min()
+        background = reconstruction(seed, -gray, method="dilation")
 
-    colonies = -gray - background
+        colonies = -gray - background
 
     rows, cols = colonies.shape
     cy, cx = rows // 2, cols // 2
