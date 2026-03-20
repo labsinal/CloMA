@@ -1,0 +1,11 @@
+name: cloma
+
+contributions:
+  commands:
+    - id: cloma.make_widget
+      python_name: CloMA.napari_plugin._cloma_widget:create_cloma_widget
+      title: CloMA Tools
+
+  widgets:
+    - command: cloma.make_widget
+      display_name: CloMA Tools

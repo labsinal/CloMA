@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloma"
+version = "0.1.0"
+description = "Colony Morphology Analysis"
+authors = [{name = "Frederico"}]
+dependencies = [
+    "napari"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["CloMA*"]
+
+[project.entry-points."napari.manifest"]
+cloma = "CloMA.napari_plugin:napari.yaml"

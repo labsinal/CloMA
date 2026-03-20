@@ -29,11 +29,11 @@ def preprocess_images(image:ndarray) -> ndarray:
     clahe = createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
     
     # Check if image is grayscale
-    if image.shape[2] > 2:
+    if len(image.shape) > 2:
         # convert if it is not
         image = cvtColor(image, COLOR_BGR2GRAY)
 
-    # apply clahe filter
+    # apply clahe filterj
     clahed = clahe.apply(image)
 
     # invert image

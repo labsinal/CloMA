@@ -1,3 +1,4 @@
 from CloMA.segmentation.segment_colonies_cellpose import segment_well_colonies as segment_cellpose
 from CloMA.segmentation.segment_colonies_mixed import segment_well_colonies_hybrid
 from CloMA.segmentation.segment_colonies_threshold import segment_well_colonies as segment_thesh
+import CloMA.napari_plugin

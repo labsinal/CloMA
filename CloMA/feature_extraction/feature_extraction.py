@@ -74,7 +74,9 @@ def extract_features(segmentation: ndarray, image: ndarray = None) -> DataFrame:
         ]
         properties = [x for x in properties if x not in remove]
 
-    image = rgb2gray(image)
+    if image is not None:
+        if image.ndim == 3:
+            image = rgb2gray(image)
 
     properties_df = DataFrame(
         regionprops_table(segmentation, image, properties=properties)
