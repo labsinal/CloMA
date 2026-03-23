@@ -4,11 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloma"
-version = "0.1.0"
-description = "Colony Morphology Analysis"
+version = "1.0.0"
+description = "Clonogenic Morphology Analysis"
 authors = [{name = "Frederico"}]
 dependencies = [
-    "napari"
+    "napari>=0.4.18",
+    "magicgui",
+    "qtpy",
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-image",
+    "opencv-python",
+    "matplotlib",
+    "tifffile",
+    "imagecodecs",
+    "qtpy",
+    "typer",
+    "cellpose"
 ]
 
 [tool.setuptools.packages.find]
