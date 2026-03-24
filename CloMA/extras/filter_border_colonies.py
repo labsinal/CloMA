@@ -5,10 +5,10 @@ Module that paints black all colonies touching the border of the well.
 ######################################
 # imports
 
-from numpy import ndarray, zeros_like
+from numpy import ndarray
 from os.path import join, dirname, basename
-from cv2 import imwrite, connectedComponents, circle
-from tifffile import imread
+import cv2
+import tifffile as tif
 import numpy as np
 
 ######################################
@@ -20,10 +20,10 @@ def filter_border_colonies(input_segmentation: ndarray,
     Function that paints black all colonies touching the border of the well.
 
     Args:
-        input_segmentation (ndarray): Unfiltered segmentation.
+        input_segmentation (np.ndarray): Unfiltered segmentation.
         radius (int): Radius to consider a colony touching the border.
-    Return:
-        Segmentation mask with only colonies inside a circle with defined radius and not touching the border,
+    Return: 
+        np.ndarray: mask with only colonies inside a circle with defined radius and not touching the border,
         preserving original label IDs.
     """
     # Ensure grayscale or single-channel mask
@@ -32,7 +32,7 @@ def filter_border_colonies(input_segmentation: ndarray,
     mask = (input_segmentation > 0).astype(np.uint8)
 
     # Identify connected components (labels start at 1)
-    num_labels, labels = connectedComponents(mask)
+    num_labels, labels = cv2.connectedComponents(mask)
 
     # Prepare output mask (same dtype as input for safety)
     filtered_mask = np.zeros_like(input_segmentation)
@@ -40,7 +40,7 @@ def filter_border_colonies(input_segmentation: ndarray,
     # Define circular valid area (inside well)
     center = (mask.shape[1] // 2, mask.shape[0] // 2)
     circle_mask = np.zeros_like(mask, dtype=np.uint8)
-    circle(circle_mask, center, radius, 1, -1)
+    cv2.circle(circle_mask, center, radius, 1, -1)
 
     # Keep only colonies completely inside the circle
     for i in range(1, num_labels):
@@ -59,7 +59,7 @@ def filter_border_colonies(input_segmentation: ndarray,
 
 def main() -> None:
     """
-    Code's main function
+    Shortcut to CLI Usage
     """
     from argparse import ArgumentParser
 
@@ -92,14 +92,14 @@ def main() -> None:
         output_path = join(dirname(args.input_segmentation),
                            basename(args.input_segmentation).replace(".png", "_filtered.png"))
 
-    image = imread(args.input_segmentation)
+    image = tif.imread(args.input_segmentation)
     if image is None:
         raise FileNotFoundError(f"Could not read file {args.input_segmentation}")
 
     radius = round(args.radius) if args.radius is not None else image.shape[0] // 2
 
     filtered = filter_border_colonies(image, radius)
-    imwrite(output_path, filtered)
+    cv2.imwrite(output_path, filtered)
     print(f"Filtered segmentation saved to {output_path}")
 
 

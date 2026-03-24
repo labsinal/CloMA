@@ -5,9 +5,7 @@ Module that segment colonies from well images
 ######################################
 # imports
 from numpy import ndarray, copy
-from cv2 import createCLAHE
-from cv2 import cvtColor, COLOR_BGR2GRAY
-from cv2 import imread, imwrite
+import cv2
 from skimage.morphology import reconstruction
 
 ######################################
@@ -18,20 +16,18 @@ def preprocess_images(image:ndarray) -> ndarray:
     Image preprocessment using clahe and background reconstruction subtraction
 
     Args:
-        image:np.ndarray
-            Image as numpy array
+        image (np.ndarray): Image as numpy array
     
     Returns:
-        np.ndarray
-            Image with filters applied
+        np.ndarray: Image with filters applied
     """
     # Create cv2 clahe object
-    clahe = createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
     
     # Check if image is grayscale
     if len(image.shape) > 2:
         # convert if it is not
-        image = cvtColor(image, COLOR_BGR2GRAY)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # apply clahe filterj
     clahed = clahe.apply(image)
@@ -53,7 +49,7 @@ def preprocess_images(image:ndarray) -> ndarray:
 
 def main():
     """
-    Code's main  function
+    Shortcut for direct CLI usage
     """
 
     from argparse import ArgumentParser
@@ -79,11 +75,11 @@ def main():
         split_input = args.input_image.rsplit(".", 1)
         output_path = split_input[0] + "_preprocessed." + split_input[-1]
 
-    img = imread(args.input_image)
+    img = cv2.imread(args.input_image)
 
     preprocessed_img = preprocess_images(image=img)
 
-    imwrite(output_path, preprocessed_img)
+    cv2.imwrite(output_path, preprocessed_img)
 
     print(f"Saving on {output_path}")
 

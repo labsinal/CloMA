@@ -10,7 +10,7 @@ from pathlib import Path
 
 def example_load_and_analyze():
     """
-    Example: Load an image and run the complete CloMA pipeline
+    Example (Load) an image and run the complete CloMA pipeline
     """
     # Create viewer
     viewer = napari.Viewer()
@@ -42,7 +42,7 @@ def example_load_and_analyze():
 
 def example_programmatic_pipeline():
     """
-    Example: Run the pipeline programmatically without GUI
+    Example (Run) the pipeline programmatically without GUI
     """
     import cv2
     from CloMA.extras.preprocess import preprocess_images
@@ -92,7 +92,7 @@ def example_programmatic_pipeline():
 
 def example_interactive_with_viewer():
     """
-    Example: Load image and use napari + plugin interactively
+    Example (Load) image and use napari + plugin interactively
     """
     import cv2
 

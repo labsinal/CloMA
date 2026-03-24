@@ -5,8 +5,7 @@ Module that detects wells in a plate photograph
 ######################################
 # imports
 from numpy import ndarray
-from cv2 import imread, imwrite
-from cv2 import cvtColor, COLOR_BGR2GRAY
+import cv2
 from skimage.feature import canny
 from skimage.transform import hough_circle, hough_circle_peaks
 from os import makedirs
@@ -23,12 +22,11 @@ def detect_wells(image: ndarray, well_radius: int, sigma:float) -> list[ndarray]
     Args:
         image (ndarray): Image of plate
         well_radius (int): Radius of wells in pixels
-    Return:
-        list[ndarray]: List of detected wells as numpy arrays
+    Return (list[ndarray]): List of detected wells as numpy arrays
     """
 
     # convert images to grayscale
-    image_gray = cvtColor(image, COLOR_BGR2GRAY)
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Detect edges
     edges = canny(image_gray, sigma=sigma)
@@ -105,7 +103,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # open image
-    image = imread(args.input_path)
+    image = cv2.imread(args.input_path)
 
     wells = detect_wells(image, args.well_radius, args.sigma)
 
@@ -122,7 +120,7 @@ def main() -> None:
     # Save wells images
     for i, well in enumerate(wells):
         filename = f"{basename(args.input_path).split(".")[0]}_well_{i:04d}.tiff"
-        imwrite(join(output, filename), well)
+        cv2.imwrite(join(output, filename), well)
     
     print("Done!")
 

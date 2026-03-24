@@ -7,7 +7,6 @@ from numpy import ndarray
 from pandas import DataFrame
 from pandas import concat
 from tifffile import imread as read_tiff
-from cv2 import imread
 from skimage.measure import regionprops_table
 from os.path import join, basename, dirname
 import numpy as np
@@ -23,18 +22,16 @@ from scipy.stats import skew, kurtosis
 def read_image(image_path: str) -> ndarray:
     """Function that opens a image independently of filetype
 
-    Args:
-        image_path (str): Path to image
+    Args (image_path) (str): Path to image
 
-    Returns:
-        np.ndarray: Opened image
+    Returns (np.ndarray): Opened image
     """
     # If it is tiff open with tifffile
     if image_path.endswith(".tif") or image_path.endswith(".tiff"):
         return read_tiff(image_path)
 
     # Else open with cv2
-    return imread(image_path)
+    return cv2.imread(image_path)
 
 
 def extract_features(segmentation: ndarray, image: ndarray = None) -> DataFrame:

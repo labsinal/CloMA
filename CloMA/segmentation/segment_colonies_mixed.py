@@ -6,9 +6,7 @@ Module that segment colonies from well images
 # imports
 from numpy import ndarray, copy, ogrid, where, unique
 import numpy as np
-from cv2 import imread, imwrite
-from cv2 import createCLAHE
-from cv2 import cvtColor, COLOR_BGR2GRAY
+import cv2
 from skimage.morphology import reconstruction
 from skimage.filters import threshold_otsu
 from skimage.measure import regionprops
@@ -52,8 +50,8 @@ def segment_well_colonies_hybrid(image: ndarray,
     colonies = image
 
     if len(image.shape) > 2:
-        clahe = createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
-        gray = clahe.apply(cvtColor(image, COLOR_BGR2GRAY))
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
+        gray = clahe.apply(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
 
         seed = copy(-gray)
         seed[1:-1, 1:-1] = (-gray).min()
@@ -167,7 +165,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # open image
-    image = imread(args.input_path)
+    image = cv2.imread(args.input_path)
 
     radius = args.diameter / 2 if args.diameter is not None else image.shape[0] / 2
     shrink = args.shrink if args.shrink is not None else 0
@@ -181,7 +179,7 @@ def main() -> None:
        filename = join(dirname(args.input_path), f"seg_{basename(args.input_path).split(".")[0]}.tif") 
 
     print(f"Saving segmentation as {filename}")
-    imwrite(filename, segmentation)
+    cv2.imwrite(filename, segmentation)
 
 ######################################
 # Call main function id runned directly

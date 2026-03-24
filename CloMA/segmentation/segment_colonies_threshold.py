@@ -5,9 +5,7 @@ Module that segment colonies from well images
 ######################################
 # imports
 from numpy import ndarray, copy, ogrid, where
-from cv2 import imread, imwrite
-from cv2 import createCLAHE
-from cv2 import cvtColor, COLOR_BGR2GRAY
+import cv2
 from skimage.morphology import reconstruction
 from skimage.filters import threshold_otsu
 from skimage.segmentation import expand_labels
@@ -21,17 +19,16 @@ def segment_well_colonies(image:ndarray, radius:int, shrink = 0) -> ndarray:
     """
     Function that segments well colonies photo
 
-    Args:
-        image:ndarray | well image as numpy array
+    Args (image):ndarray | well image as numpy array
     Returns
     ndarray | segmented well image
     """
 
     # Create CLAHE filter instance
-    clahe = createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(10, 10))
 
     # apply CLAHE to image
-    cl1 = clahe.apply(cvtColor(image, COLOR_BGR2GRAY))
+    cl1 = clahe.apply(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
 
     # Create dilation parameters
     seed = copy(-cl1)
@@ -110,7 +107,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # open image
-    image = imread(args.input_path)
+    image = cv2.imread(args.input_path)
 
     radius = args.diameter / 2 if args.diameter is not None else image.shape[0] / 2
     shrink = args.shrink if args.shrink is not None else 0
@@ -124,7 +121,7 @@ def main() -> None:
        filename = join(dirname(args.input_path), f"seg_{basename(args.input_path).split(".")[0]}.tif") 
 
     print(f"Saving segmentation as {filename}")
-    imwrite(filename, segmentation)
+    cv2.imwrite(filename, segmentation)
 
 ######################################
 # Call main function id runned directly
