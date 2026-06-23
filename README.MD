@@ -5,17 +5,38 @@ CloMA is a tool for segment and extract features from images of colonies in circ
 
 ## Features
 - Plate image preprocessing
-- Segmentation (uses a hybrid approach with threshold + Cellpose)
+- Segmentation (threshold-based morphological analysis)
 - Feature extraction
 
 ## Installation
 
-Install or update [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
+### Requirements
+- Python 3.8 or higher
+- pip or conda
+
+### Quick Install
+
+1. Clone the repository:
+```bash
+git clone https://github.com/labsinal/CloMA.git
+cd CloMA
+```
+
+2. Install the package in development mode:
+```bash
+pip install -e .
+```
+
+3. For GUI (napari plugin):
+```bash
+pip install napari[all]
+```
+
+### Using Conda (Optional)
 
 ```bash
-conda create -n CloMA
-conda activate CloMA
-conda install pip
+conda create -n cloma python=3.10
+conda activate cloma
 git clone https://github.com/labsinal/CloMA.git
 cd CloMA
 pip install -e .
