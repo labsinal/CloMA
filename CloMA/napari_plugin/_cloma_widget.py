@@ -48,6 +48,9 @@ class CloMAWidget:
         if hasattr(self, "feat_labels_select"):
             self.feat_labels_select.choices = label_layers
 
+        if hasattr(self, "seg_reference_select"):
+            self.seg_reference_select.choices = label_layers
+
         if hasattr(self, "preprocess_image_select"):
             self.preprocess_image_select.choices = image_layers
 
@@ -59,6 +62,9 @@ class CloMAWidget:
 
         if label_layers and hasattr(self, "feat_labels_select"):
             self.feat_labels_select.value = label_layers[-1]
+
+        if label_layers and hasattr(self, "seg_reference_select"):
+            self.seg_reference_select.value = label_layers[-1]
 
         QTimer.singleShot(0, self._update_circle_overlay)
 
@@ -262,7 +268,7 @@ class CloMAWidget:
         self._set_status(f"✓ {len(df)} colonies")
 
     def _run_segmentation(self, radius_factor=0.5, shrink=0.05):
-        from CloMA.segmentation import segment_well_colonies_hybrid
+        from CloMA.segmentation import automatic_segmentation, reference_segmentation
         from CloMA.extras import filter_border_colonies
 
         self._set_status("⏳ Segmenting...")
@@ -282,7 +288,23 @@ class CloMAWidget:
         h, w = image.shape[:2]
         radius = int(radius_factor * (min(h, w) / 2))
 
-        seg = segment_well_colonies_hybrid(image=image, radius=radius, shrink=shrink)
+        mode = getattr(self, 'seg_mode_select', None)
+        mode_val = mode.value if mode is not None else 'automatic'
+
+        if mode_val == 'reference':
+            ref_layer = getattr(self, 'seg_reference_select', None)
+            if ref_layer is None or ref_layer.value is None:
+                self._set_status('✗ No reference labels selected')
+                return
+            reference_labels = ref_layer.value.data.astype(np.uint32)
+            # hide reference layer to avoid visual clutter after segmentation
+            try:
+                ref_layer.value.visible = False
+            except Exception:
+                pass
+            seg = reference_segmentation(image=image, reference_labels=reference_labels, shrink=shrink)
+        else:
+            seg = automatic_segmentation(image=image, shrink=shrink)
 
         if self.seg_filter_borders.value:  # ✅ checkbox
             seg = filter_border_colonies(seg, radius=floor(radius * (1 - shrink)))
@@ -292,7 +314,7 @@ class CloMAWidget:
 
     def _run_pipeline(self, radius_factor=0.5, shrink=0.05):
         from CloMA.extras.preprocess import preprocess_images
-        from CloMA.segmentation import segment_well_colonies_hybrid
+        from CloMA.segmentation import automatic_segmentation
         from CloMA.extras import filter_border_colonies
         from CloMA.feature_extraction import extract_features
 
@@ -312,7 +334,7 @@ class CloMAWidget:
         h, w = image.shape[:2]
         radius = int(radius_factor * (min(h, w) / 2))
 
-        seg = segment_well_colonies_hybrid(image=image, radius=radius, shrink=shrink)
+        seg = automatic_segmentation(image=image, shrink=shrink)
         seg = filter_border_colonies(seg, radius=floor(radius * (1 - shrink)))
 
         seg_layer = self.viewer.add_labels(seg.astype(np.uint32), name="pipeline_seg")
@@ -406,12 +428,25 @@ class CloMAWidget:
 
         self.seg_filter_borders = CheckBox(value=True, text="Filter border colonies")  # ✅
 
+        # Segmentation mode: automatic or reference
+        self.seg_mode_select = ComboBox(label="Mode", choices=["automatic", "reference"], value="automatic")
+
+        # Reference labels selector (populated from viewer label layers)
+        self.seg_reference_select = ComboBox(label="Reference labels", choices=[])
+
         btn = PushButton(text="Segment")
         btn.clicked.connect(
             lambda: self._run_segmentation(self.radius_slider.value)
         )
 
-        seg_tab.extend([self.seg_image_select, self.radius_slider, self.seg_filter_borders, btn])
+        seg_tab.extend([
+            self.seg_image_select,
+            self.radius_slider,
+            self.seg_mode_select,
+            self.seg_reference_select,
+            self.seg_filter_borders,
+            btn,
+        ])
 
         # FEATURES TAB
         feat_tab = Container()

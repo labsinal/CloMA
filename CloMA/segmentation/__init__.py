@@ -1,4 +1,8 @@
-from CloMA.segmentation.segment_colonies_cellpose import segment_well_colonies as segment_cellpose
-from CloMA.segmentation.segment_colonies_mixed import segment_well_colonies_hybrid
-from CloMA.segmentation.segment_colonies_threshold import segment_well_colonies as segment_thesh
-import CloMA.napari_plugin
+from .segmentation import automatic_segmentation, reference_segmentation, binary_segmentation
+
+# Backwards-compatible aliases
+segment_well_colonies_hybrid = automatic_segmentation
+segment_well_colonies_reference = reference_segmentation
+
+# Do not import the napari plugin here to avoid pulling a heavy GUI
+# dependency when the package is used from CLI or scripts.

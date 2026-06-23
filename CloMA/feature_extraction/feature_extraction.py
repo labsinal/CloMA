@@ -10,6 +10,7 @@ from tifffile import imread as read_tiff
 from skimage.measure import regionprops_table
 from os.path import join, basename, dirname
 import numpy as np
+import cv2
 from skimage.color import rgb2gray
 from skimage.filters import sobel
 from skimage.feature import graycomatrix, graycoprops

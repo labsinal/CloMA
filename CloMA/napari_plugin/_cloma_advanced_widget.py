@@ -24,7 +24,7 @@ class CloMAAdvancedWidget:
         try:
             from magicgui import magicgui
             from magicgui.widgets import (
-                Container, PushButton, FloatSlider, Checkbox, Label, LineEdit
+                Container, PushButton, FloatSlider, Checkbox, Label, LineEdit, ComboBox
             )
 
             # Main container
@@ -74,18 +74,26 @@ class CloMAAdvancedWidget:
 
             filter_check = Checkbox(value=True, text="Filter Border Colonies")
 
+            # Mode selector and optional reference path
+            mode_combo = ComboBox(label="Mode", choices=["automatic", "reference"], value="automatic")
+            ref_input = LineEdit(label="Reference labels (path)")
+
             seg_btn = PushButton(text="Segment Colonies", tooltip="Hybrid threshold + Cellpose segmentation")
             seg_btn.clicked.connect(
                 lambda: self._segment_colonies(
                     radius_factor=radius_slider.value,
                     shrink=shrink_slider.value,
-                    filter_border=filter_check.value
+                    filter_border=filter_check.value,
+                    mode=mode_combo.value,
+                    reference_path=ref_input.value,
                 )
             )
 
             container.append(radius_slider)
             container.append(shrink_slider)
             container.append(filter_check)
+            container.append(mode_combo)
+            container.append(ref_input)
             container.append(seg_btn)
 
             container.append(Label(value="<hr/>"))
@@ -249,10 +257,10 @@ class CloMAAdvancedWidget:
             self._set_status(f"Preprocessing failed: {str(e)}", is_error=True)
             raise
 
-    def _segment_colonies(self, radius_factor: float = 0.5, shrink: float = 0.05, filter_border: bool = True):
+    def _segment_colonies(self, radius_factor: float = 0.5, shrink: float = 0.05, filter_border: bool = True, mode: str = "automatic", reference_path: str | None = None):
         """Segment colonies"""
         try:
-            from CloMA.segmentation import segment_well_colonies_hybrid
+            from CloMA.segmentation import automatic_segmentation, reference_segmentation
             from CloMA.extras import filter_border_colonies
 
             self._set_status("Segmenting colonies...")
@@ -268,7 +276,15 @@ class CloMAAdvancedWidget:
 
             radius = image.shape[0] / 2 * radius_factor if radius_factor > 0 else image.shape[0] / 2
 
-            seg = segment_well_colonies_hybrid(image=image, radius=radius, shrink=shrink)
+            if mode == "reference":
+                if not reference_path:
+                    self._set_status("No reference provided for reference segmentation", is_error=True)
+                    return
+                import tifffile
+                reference_labels = tifffile.imread(reference_path)
+                seg = reference_segmentation(image=image, reference_labels=reference_labels, shrink=shrink)
+            else:
+                seg = automatic_segmentation(image=image, shrink=shrink)
 
             if filter_border:
                 seg = filter_border_colonies(seg, radius=floor(radius * (1 - shrink)))
@@ -334,7 +350,7 @@ class CloMAAdvancedWidget:
         """Run complete pipeline"""
         try:
             from CloMA.extras.preprocess import preprocess_images
-            from CloMA.segmentation import segment_well_colonies_hybrid
+            from CloMA.segmentation import automatic_segmentation
             from CloMA.extras import filter_border_colonies
             from CloMA.feature_extraction import extract_features
 
@@ -357,7 +373,7 @@ class CloMAAdvancedWidget:
             # 2. Segment
             self._set_status("⏳ Pipeline running... (2/4 segmentation)")
             radius = image.shape[0] / 2 * radius_factor if radius_factor > 0 else image.shape[0] / 2
-            seg = segment_well_colonies_hybrid(image=image, radius=radius, shrink=shrink)
+            seg = automatic_segmentation(image=image, shrink=shrink)
 
             # 3. Filter
             self._set_status("⏳ Pipeline running... (3/4 filtering)")
