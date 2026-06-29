@@ -119,6 +119,10 @@ class WellDetectorGUI:
             and c["cx"]+c["r"]<max_x and c["cy"]+c["r"]<max_y
         ]
 
+        # sort circles by row (y) then column (x) to preserve grid order
+        row_height = max(radius * 1.5, 1)
+        circles_info.sort(key=lambda circle: (int(circle["cy"] / row_height), circle["cx"]))
+
         crops = [
             self.image[
                 c["cy"]-c["r"]:c["cy"]+c["r"],
