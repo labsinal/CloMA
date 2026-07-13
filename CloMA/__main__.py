@@ -46,60 +46,6 @@ def _save_table(table: DataFrame, output: str, default_name: str) -> None:
     output_path = _make_output_path(output, default_name)
     table.to_csv(output_path, index=False)
 
-
-@app.command()
-def complete_pipeline(
-    img: Annotated[str, typer.Option(help="Path to image to be processed")],
-    output: Annotated[str, typer.Option(help="Path to folder where pipeline result will be saved")],
-):
-    """
-    Run the complete CloMA pipeline: well detection, preprocessing, segmentation, and feature extraction.
-    """
-    from CloMA.extras.well_detection_interactive import WellDetectorGUI
-    from CloMA.extras.preprocess import preprocess_images
-    from CloMA.segmentation import automatic_segmentation
-    from CloMA.feature_extraction import extract_features
-    from CloMA.extras import filter_border_colonies
-
-    wells_dir = join(output, "wells")
-    makedirs(wells_dir, exist_ok=True)
-
-    import tkinter as tk
-
-    root = tk.Tk()
-    WellDetectorGUI(root, image_path=img, output_folder=wells_dir)
-    root.mainloop()
-
-    preprocessed_folder = join(output, "preprocessed")
-    segmentation_folder = join(output, "segmentations")
-    features_folder = join(output, "features")
-
-    makedirs(preprocessed_folder, exist_ok=True)
-    makedirs(segmentation_folder, exist_ok=True)
-    makedirs(features_folder, exist_ok=True)
-
-    for well_path in glob(join(wells_dir, "*.tiff")):
-        image = _read_image(well_path)
-        preprocessed_image = preprocess_images(image)
-        imwrite(join(preprocessed_folder, f"preprocessed_{basename(well_path)}"), preprocessed_image)
-
-        segmentation = automatic_segmentation(image=image)
-        segmentation = filter_border_colonies(segmentation, radius=image.shape[0] // 2)
-        seg_out = join(segmentation_folder, f"segmentation_{basename(well_path)}")
-        if Path(seg_out).suffix.lower() in {".tif", ".tiff"}:
-            import tifffile
-            tifffile.imwrite(seg_out, segmentation.astype(np.uint32))
-        else:
-            # convert to supported type for OpenCV if necessary
-            out_seg = segmentation
-            if out_seg.dtype == np.uint32:
-                out_seg = out_seg.astype(np.uint16)
-            imwrite(seg_out, out_seg)
-
-        table = extract_features(segmentation=segmentation, image=image)
-        _save_table(table, features_folder, f"features_{basename(well_path)}")
-
-
 @app.command()
 def well_detection(img: Annotated[str, typer.Option(help="Path to plate image (not used on GUI mode)")] = None,
                    output: Annotated[str, typer.Option(help="Path to save wells (not used on GUI mode)")] = None,
@@ -125,6 +71,23 @@ def well_detection(img: Annotated[str, typer.Option(help="Path to plate image (n
         crops = detect_wells(img, radius, sigma)
         for i, crop in enumerate(crops):
             cv2.imwrite(_make_output_path(output, f"well_{i+1:04}.tif"), crop)
+
+@app.command()
+def preprocess_images(
+    img: Annotated[str, typer.Option(help="Path to image to enhance")],
+    output: Annotated[str, typer.Option(help="Path to folder or file where image will be saved")],
+    invert: Annotated[bool, typer.Option(help="Whether to invert or not the image")] = True
+):
+    """
+    Preprocess an image and save the result.
+    """
+    from CloMA.extras.preprocess import preprocess_images
+
+    image = _read_image(img)
+    processed_img = preprocess_images(image=image, invert=invert)
+    output_path = _make_output_path(output, f"preprocessed_{basename(img)}")
+    imwrite(output_path, processed_img)
+
 
 @app.command()
 def segment_images(
@@ -192,20 +155,6 @@ def extract_features(
     table = extract_features(segmentation=seg_array, image=image)
     _save_table(table, output, f"features_{basename(seg)}")
 
-@app.command()
-def preprocess_images(
-    img: Annotated[str, typer.Option(help="Path to image to enhance")],
-    output: Annotated[str, typer.Option(help="Path to folder or file where image will be saved")],
-):
-    """
-    Preprocess an image and save the result.
-    """
-    from CloMA.extras.preprocess import preprocess_images
-
-    image = _read_image(img)
-    processed_img = preprocess_images(image=image)
-    output_path = _make_output_path(output, f"preprocessed_{basename(img)}")
-    imwrite(output_path, processed_img)
 
 if __name__ == "__main__":
     app()
