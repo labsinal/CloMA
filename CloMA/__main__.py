@@ -120,6 +120,8 @@ def segment_images(
     mode: Annotated[str, typer.Option(help="Segmentation mode: automatic or reference", case_sensitive=False)] = "automatic",
     reference: Annotated[str, typer.Option(help="Path to reference label image used for reference segmentation")] = None,
     shrink: Annotated[float, typer.Option(help="Shrink fraction for circular masking")] = 0.03,
+    threshold_method: Annotated[str, typer.Option(help="Threshold method for automatic mode: otsu, multi, manual", case_sensitive=False)] = "otsu",
+    threshold_value: Annotated[float, typer.Option(help="Manual threshold value (use with threshold_method=manual)")] = None,
 ):
     """
     Segment colonies from an image using automatic or reference mode.
@@ -144,7 +146,9 @@ def segment_images(
             shrink=shrink,
         )
     else:
-        segmentation = automatic_segmentation(image=image, shrink=shrink)
+        segmentation = automatic_segmentation(image=image, shrink=shrink,
+                                            threshold_method=threshold_method,
+                                            threshold_value=threshold_value)
 
     output_path = _make_output_path(output, f"segmentation_{basename(img)}")
     if Path(output_path).suffix.lower() in {".tif", ".tiff"}:

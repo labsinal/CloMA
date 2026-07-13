@@ -57,7 +57,9 @@ def remove_border_colonies(labels : np.ndarray,
 
 def binary_segmentation(image  : np.ndarray,
                         shrink : float = 0.03,
-                        preprocessed: bool = False) -> np.ndarray:
+                        preprocessed: bool = False,
+                        threshold_method: str = "otsu",
+                        threshold_value: float = None) -> np.ndarray:
     """
     Function that does the binary colonies segmentation.
 
@@ -77,52 +79,74 @@ def binary_segmentation(image  : np.ndarray,
     masked = np.zeros_like(preprocessed_image)
     masked[mask] = preprocessed_image[mask]
 
-    # calculate the threshhold using only the masked region
-    threshold = ski.filters.threshold_otsu(masked[mask]) if np.any(mask) else 0
+    # calculate the threshold using only the masked region
+    if not np.any(mask):
+        threshold = 0
+    else:
+        if threshold_method == "manual" and threshold_value is not None:
+            threshold = float(threshold_value)
+        elif threshold_method == "multi":
+            # use two classes to obtain a single threshold from multi otsu
+            thr = ski.filters.threshold_multiotsu(masked[mask], classes=2)
+            threshold = thr[0] if len(thr) > 0 else ski.filters.threshold_otsu(masked[mask])
+        else:
+            threshold = ski.filters.threshold_otsu(masked[mask])
 
     # make binary segmentation
     return masked > threshold
 
+
+def watershed_from_binary(binary: np.ndarray,
+                         min_distance: int = 10,
+                         threshold_rel: float = 0.06) -> np.ndarray:
+    """
+    Given a binary mask, run distance-transform based watershed and return labels.
+    """
+    # prepare for watershed
+    filled = ndi.binary_fill_holes(binary)
+
+    opened = ski.morphology.opening(
+        filled,
+        ski.morphology.disk(2)
+    )
+    closed = ski.morphology.closing(
+        opened,
+        ski.morphology.disk(2)
+    )
+
+    distance = ndi.distance_transform_edt(closed)
+
+    coords = ski.feature.peak_local_max(
+        distance,
+        min_distance=min_distance,
+        threshold_rel=threshold_rel,
+        labels=closed,
+    )
+    markers = np.zeros_like(closed, dtype=np.int32)
+    for i, (r, c) in enumerate(coords, start=1):
+        markers[r, c] = i
+
+    labels = ski.segmentation.watershed(
+        -distance,
+        markers,
+        mask=closed,
+    )
+
+    return labels
+
 def automatic_segmentation( image: np.ndarray,
-                            shrink: float = 0.03) -> np.ndarray:
+                            shrink: float = 0.03,
+                            threshold_method: str = "otsu",
+                            threshold_value: float = None) -> np.ndarray:
     """
     Automatic segmentation using threshhold and
     watershed separation
     """
-    binary = binary_segmentation(image, shrink)
+    binary = binary_segmentation(image, shrink, preprocessed=False,
+                                 threshold_method=threshold_method,
+                                 threshold_value=threshold_value)
 
-    # prepare for watershed
-    binary = ndi.binary_fill_holes(binary)
-    
-    binary = ski.morphology.opening(
-        binary,
-        ski.morphology.disk(2)
-    )
-    binary = ski.morphology.closing(
-        binary,
-        ski.morphology.disk(2)
-    )
-
-    # calculate distance transform
-    distance = ndi.distance_transform_edt(binary)
-
-    # find markers for watershed
-    coords = ski.feature.peak_local_max(
-        distance,
-        min_distance=10,
-        threshold_rel=0.06,
-        labels=binary
-    )
-    markers = np.zeros_like(binary, dtype=np.int32)
-    for i, (r, c) in enumerate(coords, start=1):
-        markers[r, c] = i
-
-    # find labels
-    labels = ski.segmentation.watershed(
-        -distance,
-        markers,
-        mask=binary
-    )
+    labels = watershed_from_binary(binary)
 
     # merge surrounded colonies
     labels_merged = labels.copy()

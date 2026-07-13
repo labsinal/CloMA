@@ -304,6 +304,7 @@ class CloMAWidget:
                 pass
             seg = reference_segmentation(image=image, reference_labels=reference_labels, shrink=shrink)
         else:
+            # default automatic segmentation uses current threshold settings
             seg = automatic_segmentation(image=image, shrink=shrink)
 
         if self.seg_filter_borders.value:  # ✅ checkbox
@@ -311,6 +312,123 @@ class CloMAWidget:
 
         self.viewer.add_labels(seg.astype(np.uint32), name=f"seg_{layer.name}")
         self._set_status("✓ Segmentation complete!")
+
+    def _update_binary_mask(self):
+        """Create or update a dynamic binary mask based on slider value."""
+        try:
+            layer = self.seg_image_select.value
+            if layer is None:
+                return
+
+            image = layer.data.astype(np.uint8)
+            if image.ndim == 3 and image.shape[2] > 2:
+                from cv2 import cvtColor, COLOR_BGR2GRAY
+                image = cvtColor(image, COLOR_BGR2GRAY)
+
+            from CloMA.extras.preprocess import preprocess_images
+
+            # cache preprocessed image per source layer to make updates fast
+            layer_name = getattr(layer, 'name', None)
+            if getattr(self, '_cached_preprocessed_name', None) == layer_name and getattr(self, '_cached_preprocessed', None) is not None:
+                pre = self._cached_preprocessed
+            else:
+                pre = preprocess_images(image)
+                self._cached_preprocessed_name = layer_name
+                self._cached_preprocessed = pre
+
+            # FAST: compute binary on full preprocessed image (no ROI masking)
+            thresh = int(self.threshold_slider.value)
+            binary = pre > thresh
+
+            # add or update binary image layer
+            layer_name = f"binary_mask_{layer.name}"
+            existing = [l for l in self.viewer.layers if l.name == layer_name]
+            binary_uint8 = (binary * 255).astype(np.uint8)
+            if existing:
+                existing[0].data = binary_uint8
+            else:
+                self.viewer.add_image(binary_uint8, name=layer_name, colormap="gray", visible=True)
+
+        except Exception as e:
+            self._set_status(f"✗ Binary error: {e}")
+
+    def _automatic_thresholding(self):
+        """Compute threshold by multi-otsu and set slider value."""
+        try:
+            layer = self.seg_image_select.value
+            if layer is None:
+                self._set_status('✗ No image selected')
+                return
+
+            image = layer.data.astype(np.uint8)
+            if image.ndim == 3 and image.shape[2] > 2:
+                from cv2 import cvtColor, COLOR_BGR2GRAY
+                image = cvtColor(image, COLOR_BGR2GRAY)
+
+            from CloMA.extras.preprocess import preprocess_images
+
+            # use cached preprocessed when available
+            layer_name = getattr(layer, 'name', None)
+            if getattr(self, '_cached_preprocessed_name', None) == layer_name and getattr(self, '_cached_preprocessed', None) is not None:
+                pre = self._cached_preprocessed
+            else:
+                pre = preprocess_images(image)
+                self._cached_preprocessed_name = layer_name
+                self._cached_preprocessed = pre
+
+            import skimage.filters as filters
+            thr = filters.threshold_multiotsu(pre, classes=2)
+            threshold = int(thr[0]) if len(thr) > 0 else int(filters.threshold_otsu(pre))
+
+            # update slider and binary (fast, on full image)
+            self.threshold_slider.value = float(threshold)
+            self._update_binary_mask()
+            self._set_status(f"✓ Automatic threshold: {threshold}")
+
+        except Exception as e:
+            self._set_status(f"✗ Auto-threshold error: {e}")
+
+    def _run_watershed(self):
+        """Run watershed separation using current binary mask and add labels layer."""
+        try:
+            layer = self.seg_image_select.value
+            if layer is None:
+                self._set_status('✗ No image selected')
+                return
+
+            bin_name = f"binary_mask_{layer.name}"
+            binary_layer = next((l for l in self.viewer.layers if l.name == bin_name), None)
+            if binary_layer is None:
+                # create binary first
+                self._update_binary_mask()
+                binary_layer = next((l for l in self.viewer.layers if l.name == bin_name), None)
+
+            if binary_layer is None:
+                self._set_status('✗ Binary mask not available')
+                return
+
+            binary = (binary_layer.data > 0).astype(bool)
+
+            # Apply ROI mask for watershed separation only
+            h, w = binary.shape[:2]
+            radius_value = self.radius_slider.value
+            max_radius = min(h, w) / 2
+            radius = max(2, int(radius_value * max_radius))
+            cy, cx = h // 2, w // 2
+            Y, X = np.ogrid[:h, :w]
+            dist_from_center = np.sqrt((X - cx)**2 + (Y - cy)**2)
+            roi_mask = dist_from_center <= radius
+
+            binary_roi = binary & roi_mask
+
+            from CloMA.segmentation import watershed_from_binary
+
+            labels = watershed_from_binary(binary_roi)
+            self.viewer.add_labels(labels.astype(np.uint32), name=f"watershed_{layer.name}")
+            self._set_status('✓ Watershed complete')
+
+        except Exception as e:
+            self._set_status(f"✗ Watershed error: {e}")
 
     def _run_pipeline(self, radius_factor=0.5, shrink=0.05):
         from CloMA.extras.preprocess import preprocess_images
@@ -439,12 +557,25 @@ class CloMAWidget:
             lambda: self._run_segmentation(self.radius_slider.value)
         )
 
+        # Threshold slider and related buttons
+        self.threshold_slider = FloatSlider(min=0, max=255, value=128)
+        self.threshold_slider.changed.connect(lambda v: self._update_binary_mask())
+
+        auto_thresh_btn = PushButton(text="Automatic thresholding")
+        auto_thresh_btn.clicked.connect(self._automatic_thresholding)
+
+        watershed_btn = PushButton(text="Watershed")
+        watershed_btn.clicked.connect(self._run_watershed)
+
         seg_tab.extend([
             self.seg_image_select,
             self.radius_slider,
             self.seg_mode_select,
             self.seg_reference_select,
             self.seg_filter_borders,
+            self.threshold_slider,
+            auto_thresh_btn,
+            watershed_btn,
             btn,
         ])
 
