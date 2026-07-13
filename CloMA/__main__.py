@@ -101,17 +101,30 @@ def complete_pipeline(
 
 
 @app.command()
-def well_detection():
+def well_detection(img: Annotated[str, typer.Option(help="Path to plate image (not used on GUI mode)")] = None,
+                   output: Annotated[str, typer.Option(help="Path to save wells (not used on GUI mode)")] = None,
+                   sigma: Annotated[float, typer.Option(help="Intensity of gaussian blur (not used on GUI mode)")] = None,
+                   radius: Annotated[int, typer.Option(help="Well radius (not used on GUI mode)")] = None,
+                   gui: Annotated[bool, typer.Option(help="Flag to activate GUI mode")] = False):
     """
     Detect wells from images interactively.
     """
-    from CloMA.extras.well_detection_interactive import WellDetectorGUI
+    from CloMA.extras import WellDetectorGUI, detect_wells
     import tkinter as tk
 
-    root = tk.Tk()
-    WellDetectorGUI(root)
-    root.mainloop()
-
+    if gui:
+        root = tk.Tk()
+        WellDetectorGUI(root)
+        root.mainloop()
+        
+    else:
+        import cv2
+        if not os.isdir(output): 
+            print("output must be dir.") 
+            return            
+        crops = detect_wells(img, radius, sigma)
+        for i, crop in enumerate(crops):
+            cv2.imwrite(_make_output_path(output, f"well_{i+1:04}.tif"), crop)
 
 @app.command()
 def segment_images(
