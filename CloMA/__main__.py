@@ -93,48 +93,58 @@ def preprocess_images(
 def segment_images(
     img: Annotated[str, typer.Option(help="Path to image to be segmented")],
     output: Annotated[str, typer.Option(help="Path to folder or file where segmentation masks will be saved")],
-    mode: Annotated[str, typer.Option(help="Segmentation mode: automatic or reference", case_sensitive=False)] = "automatic",
-    reference: Annotated[str, typer.Option(help="Path to reference label image used for reference segmentation")] = None,
-    shrink: Annotated[float, typer.Option(help="Shrink fraction for circular masking")] = 0.03,
-    threshold_method: Annotated[str, typer.Option(help="Threshold method for automatic mode: otsu, multi, manual", case_sensitive=False)] = "otsu",
-    threshold_value: Annotated[float, typer.Option(help="Manual threshold value (use with threshold_method=manual)")] = None,
+    treshold: Annotated[int, typer.Option(help="Treshold for segmentation, do not use this for automatic with multiotsu")] = None,
+    circle_mask: Annotated[float, typer.Option(help="Value (0 - 1) for circular mask to define border")] = 0.97,
+    reference: Annotated[str, typer.Option(help="Path to reference labels, lave blank for automatic separation")] = None,
+    remove_border: Annotated[bool, typer.Option(help="Flag to remove border colonies")] = True,
+    preprocess: Annotated[bool, typer.Option(help="Flag to apply preprocessing before segmenting")] = False,
+    invert: Annotated[bool, typer.Option(help="Flag to invert or not during preprocessing (only used if preprocess activated)")] = True
 ):
     """
     Segment colonies from an image using automatic or reference mode.
     Run this on the raw images, not preprocessed ones
     """
-    from CloMA.segmentation import automatic_segmentation, reference_segmentation
+    import CloMA.segmentation.new_segmentation as seg
+    from pathlib import Path
+    import matplotlib.pyplot as plt
 
+    # open image as array
     image = _read_image(img)
 
-    if mode.lower() not in {"automatic", "reference"}:
-        raise typer.BadParameter("mode must be 'automatic' or 'reference'")
+    # check if image is grayscale
 
-    if mode.lower() == "reference":
-        if reference is None:
-            raise typer.BadParameter("reference is required for reference segmentation mode")
-        import tifffile
 
-        reference_labels = tifffile.imread(reference)
-        segmentation = reference_segmentation(
-            image=image,
-            reference_labels=reference_labels,
-            shrink=shrink,
-        )
+    # if preprocess is set to true, run preprocessment
+    if preprocess:
+        from CloMA.extras import preprocess_images
+        image = preprocess_images(image, invert)
+
+    # Calculate treshold
+    tresh = seg.multiotsu_tresholding(image) if treshold is None else treshold
+
+    binary = seg.apply_treshold(image, tresh)
+
+
+    # Create mask
+    mask = seg.create_circular_mask(image.shape, radius=image.shape[0] / 2 * circle_mask)
+    binary = np.where(mask, binary, 0)
+
+
+    # Separate masks into labels
+    if reference is None:
+        labels = seg.automatic_separation(binary)
+
     else:
-        segmentation = automatic_segmentation(image=image, shrink=shrink,
-                                            threshold_method=threshold_method,
-                                            threshold_value=threshold_value)
+        labels = seg.reference_separation(binary, _read_image(reference))
+    
+    # remove border colonies
+    if remove_border:
+        final_labels = seg.remove_border_colonies(labels, mask)
 
-    output_path = _make_output_path(output, f"segmentation_{basename(img)}")
-    if Path(output_path).suffix.lower() in {".tif", ".tiff"}:
-        import tifffile
-        tifffile.imwrite(output_path, segmentation.astype(np.uint32))
-    else:
-        out_seg = segmentation
-        if out_seg.dtype == np.uint32:
-            out_seg = out_seg.astype(np.uint16)
-        imwrite(output_path, out_seg)
+    # create output name    
+    out_name = _make_output_path(output, f"seg_{Path(img).stem}.tif")
+    # export image
+    imwrite(out_name, final_labels)
 
 
 @app.command()
