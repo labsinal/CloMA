@@ -8,8 +8,6 @@ import numpy as np
 from pandas import DataFrame
 from cv2 import imread, imwrite
 from os.path import isdir, join, basename
-from os import makedirs
-from glob import glob
 
 # Ensure the repository root is importable when running this CLI directly.
 repo_root = Path(__file__).resolve().parent.parent
@@ -21,7 +19,6 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
 )
-
 
 def _read_image(path: str) -> np.ndarray:
     path_obj = Path(path)
@@ -106,7 +103,6 @@ def segment_images(
     """
     import CloMA.segmentation.new_segmentation as seg
     from pathlib import Path
-    import matplotlib.pyplot as plt
 
     # open image as array
     image = _read_image(img)
@@ -158,9 +154,7 @@ def extract_features(
     """
     from CloMA.feature_extraction import extract_features
 
-    import tifffile
-
-    seg_array = tifffile.imread(seg)
+    seg_array = _read_image(seg)
     image = _read_image(img) if img is not None else None
     table = extract_features(segmentation=seg_array, image=image)
     _save_table(table, output, f"features_{basename(seg)}")

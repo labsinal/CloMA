@@ -1,271 +1,229 @@
 """
-Module that extract features from clonogenic images and segmentation
+Module for extracting morphological, intensity, and texture features from
+clonogenic assay segmentations.
 """
 
-# Imports
-from numpy import ndarray
-from pandas import DataFrame
-from pandas import concat
-from tifffile import imread as read_tiff
-from skimage.measure import regionprops_table
-from os.path import join, basename, dirname
-import numpy as np
 import cv2
-from skimage.color import rgb2gray
-from skimage.filters import sobel
+import numpy as np
+import pandas as pd
+
 from skimage.feature import graycomatrix, graycoprops
-from scipy.stats import skew, kurtosis
+from skimage.measure import regionprops
 
 
-# Define helper functions
+#################################
+# Private helper functions
 
-
-def read_image(image_path: str) -> ndarray:
-    """Function that opens a image independently of filetype
-
-    Args (image_path) (str): Path to image
-
-    Returns (np.ndarray): Opened image
+def _extract_morphology(region, row):
     """
-    # If it is tiff open with tifffile
-    if image_path.endswith(".tif") or image_path.endswith(".tiff"):
-        return read_tiff(image_path)
+    Extract morphological features from a segmented object.
 
-    # Else open with cv2
-    return cv2.imread(image_path)
+    Args:
+    region : skimage.measure.RegionProperties
+        RegionProperties object corresponding to a single segmented object.
+    row : dict
+        Dictionary where the extracted features will be stored.
+    """
+
+    # Basic region properties
+    row["label"] = region.label
+    row["area"] = region.area
+    row["area_bbox"] = region.area_bbox
+    row["area_convex"] = region.area_convex
+    row["area_filled"] = region.area_filled
+
+    # Ellipse-derived measurements
+    row["axis_major_length"] = region.axis_major_length
+    row["axis_minor_length"] = region.axis_minor_length
+
+    # Object centroid
+    row["y"] = region.centroid[0]
+    row["x"] = region.centroid[1]
+
+    # Shape descriptors
+    row["eccentricity"] = region.eccentricity
+    row["equivalent_diameter_area"] = region.equivalent_diameter_area
+    row["euler_number"] = region.euler_number
+    row["extent"] = region.extent
+    row["feret_diameter_max"] = region.feret_diameter_max
+    row["orientation"] = region.orientation
+    row["perimeter"] = region.perimeter
+    row["perimeter_crofton"] = region.perimeter_crofton
+    row["solidity"] = region.solidity
 
 
-def extract_features(segmentation: ndarray, image: ndarray = None) -> DataFrame:
-    """Function that extracts features from segmentation and images"""
+def _extract_rgb(region, row):
+    """
+    Extract RGB intensity statistics from a segmented object.
 
-    properties = [
-        "label",
-        "area",
-        "area_bbox",
-        "area_convex",
-        "area_filled",
-        "axis_major_length",
-        "axis_minor_length",
-        "centroid",
-        "eccentricity",
-        "equivalent_diameter_area",
-        "euler_number",
-        "extent",
-        "feret_diameter_max",
-        "intensity_max",
-        "intensity_mean",
-        "intensity_min",
-        "intensity_std",
-        "num_pixels",
-        "orientation",
-        "perimeter",
-        "perimeter_crofton",
-        "solidity",
-    ]
+    Args:
+    region : skimage.measure.RegionProperties
+        RegionProperties object containing the cropped RGB image.
+    row : dict
+        Dictionary where the extracted features will be stored.
+    """
 
-    if image is None:
-        remove = [
-            "intensity_max",
-            "intensity_mean",
-            "intensity_min",
-            "intensity_std",
-        ]
-        properties = [x for x in properties if x not in remove]
+    # Binary mask and cropped RGB image
+    mask = region.image
+    rgb = region.intensity_image
 
+    # Extract object pixels only
+    pixels = rgb[mask]
+
+    channels = ("r", "g", "b")
+
+    # Compute statistics for each color channel
+    for i, channel in enumerate(channels):
+
+        row[f"intensity_mean-{channel}"] = pixels[:, i].mean()
+        row[f"intensity_std-{channel}"] = pixels[:, i].std()
+        row[f"intensity_min-{channel}"] = pixels[:, i].min()
+        row[f"intensity_max-{channel}"] = pixels[:, i].max()
+
+
+def _extract_dye(region, grayscale_image, mean_background, row):
+    """
+    Extract grayscale dye intensity features relative to the image background.
+
+    The object intensity is compared to the average grayscale intensity of the
+    image background.
+
+    Args:
+    region : skimage.measure.RegionProperties
+        RegionProperties object corresponding to one segmented object.
+    grayscale_image : ndarray
+        Grayscale version of the original image.
+    mean_background : float
+        Mean grayscale intensity of the image background.
+    row : dict
+        Dictionary where the extracted features will be stored.
+    """
+
+    # Crop grayscale image using the object's bounding box
+    minr, minc, maxr, maxc = region.bbox
+    crop = grayscale_image[minr:maxr, minc:maxc]
+
+    # Extract only object pixels
+    pixels = crop[region.image]
+
+    # Intensity statistics relative to the background
+    row["dye_mean"] = abs(pixels.mean() - mean_background)
+    row["dye_max"] = abs(pixels.max() - mean_background)
+    row["dye_min"] = abs(pixels.min() - mean_background)
+    row["dye_std"] = pixels.std()
+
+
+def _extract_texture(region, grayscale_image, row):
+    """
+    Extract Gray-Level Co-occurrence Matrix (GLCM) texture features.
+
+    Texture features are computed from the grayscale image cropped to the
+    object's bounding box.
+
+    Args:
+    region : skimage.measure.RegionProperties
+        RegionProperties object corresponding to one segmented object.
+    grayscale_image : ndarray
+        Grayscale version of the original image.
+    row : dict
+        Dictionary where the extracted features will be stored.
+    """
+
+    # Crop grayscale image to the object's bounding box
+    minr, minc, maxr, maxc = region.bbox
+    crop = grayscale_image[minr:maxr, minc:maxc].copy()
+
+    # Remove pixels outside the object
+    crop[~region.image] = 0
+
+    # Compute Gray-Level Co-occurrence Matrix
+    glcm = graycomatrix(
+        crop,
+        distances=[1],
+        angles=[0],
+        levels=256,
+        symmetric=True,
+        normed=True,
+    )
+
+    # Texture measurements to extract
+    properties = (
+        "contrast",
+        "dissimilarity",
+        "homogeneity",
+        "energy",
+        "correlation",
+    )
+
+    # Store each texture feature
+    for prop in properties:
+        row[f"glcm_{prop}"] = graycoprops(glcm, prop)[0, 0]
+
+
+#################################
+# Public API
+
+def extract_features(segmentation, image=None):
+    """
+    Extract morphological, intensity, dye, and texture features from a
+    labeled segmentation image.
+
+    Args:
+    segmentation : ndarray
+        Labeled segmentation image where 0 represents the background and each
+        positive integer corresponds to a unique object.
+    image : ndarray, optional
+        Original RGB image. If provided, intensity, dye, and texture features
+        are also extracted. Otherwise, only morphological features are
+        computed.
+
+    Returns:
+    pandas.DataFrame
+        DataFrame containing one row per segmented object and one column per
+        extracted feature.
+    """
+
+    # Store extracted features for every object
+    rows = []
+
+    grayscale = None
+    mean_background = None
+
+    # Precompute grayscale image and background intensity
     if image is not None:
-        if image.ndim == 3:
-            image = rgb2gray(image)
 
-    properties_df = DataFrame(
-        regionprops_table(segmentation, image, properties=properties)
-    )
+        grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    properties_df.rename(
-        columns={
-            "centroid-0": "y",
-            "centroid-1": "x",
-            "intensity_max-0": "intensity_max-r",
-            "intensity_max-1": "intensity_max-g",
-            "intensity_max-2": "intensity_max-b",
-            "intensity_mean-0": "intensity_mean-r",
-            "intensity_mean-1": "intensity_mean-g",
-            "intensity_mean-2": "intensity_mean-b",
-            "intensity_min-0": "intensity_min-r",
-            "intensity_min-1": "intensity_min-g",
-            "intensity_min-2": "intensity_min-b",
-            "intensity_std-0": "intensity_std-r",
-            "intensity_std-1": "intensity_std-g",
-            "intensity_std-2": "intensity_std-b",
-        },
-        inplace=True,
-    )
+        mean_background = grayscale[segmentation == 0].mean()
 
-    # =====================================================
-    # ADD NEW FEATURES ONLY IF IMAGE PROVIDED
-    # =====================================================
+    # Iterate over every segmented object
+    for region in regionprops(segmentation, intensity_image=image):
 
-    if image is not None:
+        row = {}
 
-        gray_uint8 = (image * 255).astype(np.uint8)
-        gradient = sobel(image)
+        # Morphological features
+        _extract_morphology(region, row)
 
-        texture_features = []
-        gradient_features = []
-        intensity_distribution_features = []
+        if image is not None:
 
-        labels = properties_df["label"].values
+            # Color features
+            _extract_rgb(region, row)
 
-        for lab in labels:
-
-            mask = segmentation == lab
-
-            # -----------------------
-            # GLCM Texture
-            # -----------------------
-            region_pixels = gray_uint8 * mask
-
-            glcm = graycomatrix(
-                region_pixels,
-                distances=[1],
-                angles=[0],
-                levels=256,
-                symmetric=True,
-                normed=True,
+            # Dye intensity features
+            _extract_dye(
+                region,
+                grayscale,
+                mean_background,
+                row,
             )
 
-            contrast = graycoprops(glcm, "contrast")[0, 0]
-            dissimilarity = graycoprops(glcm, "dissimilarity")[0, 0]
-            homogeneity = graycoprops(glcm, "homogeneity")[0, 0]
-            energy = graycoprops(glcm, "energy")[0, 0]
-            correlation = graycoprops(glcm, "correlation")[0, 0]
-
-            texture_features.append(
-                [contrast, dissimilarity, homogeneity, energy, correlation]
+            # Texture features
+            _extract_texture(
+                region,
+                grayscale,
+                row,
             )
 
-            # -----------------------
-            # Gradient statistics
-            # -----------------------
-            grad_vals = gradient[mask]
+        rows.append(row)
 
-            gradient_features.append(
-                [
-                    np.mean(grad_vals),
-                    np.std(grad_vals),
-                    np.max(grad_vals),
-                ]
-            )
-
-            # -----------------------
-            # Intensity distribution
-            # -----------------------
-            intens_vals = image[mask]
-
-            intensity_distribution_features.append(
-                [
-                    np.std(intens_vals),
-                    skew(intens_vals),
-                    kurtosis(intens_vals),
-                ]
-            )
-
-        texture_df = DataFrame(
-            texture_features,
-            columns=[
-                "glcm_contrast",
-                "glcm_dissimilarity",
-                "glcm_homogeneity",
-                "glcm_energy",
-                "glcm_correlation",
-            ],
-        )
-
-        gradient_df = DataFrame(
-            gradient_features,
-            columns=[
-                "gradient_mean",
-                "gradient_std",
-                "gradient_max",
-            ],
-        )
-
-        intensity_dist_df = DataFrame(
-            intensity_distribution_features,
-            columns=[
-                "gray_std",
-                "gray_skewness",
-                "gray_kurtosis",
-            ],
-        )
-
-        properties_df = concat(
-            [properties_df, texture_df, gradient_df, intensity_dist_df],
-            axis=1,
-        )
-
-    return properties_df
-
-
-# Define main function
-def main() -> None:
-    """
-    Main function to extract features from clonogenic images and segmentation
-    """
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser(
-        description="Module taht extract features from clonogenic images and segmentation"
-    )
-
-    parser.add_argument(
-        "-s",
-        "--segmentation_path",
-        action="store",
-        dest="segmentation_path",
-        required=True,
-        help="Path to semgnetation images",
-    )
-
-    parser.add_argument(
-        "-i",
-        "--image_path",
-        action="store",
-        dest="image_path",
-        required=False,
-        help="Path to clonogenic image (if not defined only area and shape features will be extracted)",
-    )
-
-    parser.add_argument(
-        "-o",
-        "--output_path",
-        action="store",
-        dest="output_path",
-        required=False,
-        help="Path to output csv, if not passed will be saved in the same folder as segmentation_path",
-    )
-
-    args = parser.parse_args()
-
-    # open images
-    segmentation = read_image(args.segmentation_path)
-    image = read_image(args.image_path) if args.image_path is not None else None
-
-    # create featurres table
-    features_table = extract_features(segmentation, image=image)
-
-    # Save
-    output_path = (
-        args.output_path
-        if args.output_path is not None
-        else join(
-            dirname(args.segmentation_path),
-            basename(args.segmentation_path).split(".")[0] + ".csv",
-        )
-    )
-
-    features_table.to_csv(output_path, index=False)
-
-
-# Call main funtion
-if __name__ == "__main__":
-    main()
+    return pd.DataFrame(rows)
