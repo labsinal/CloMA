@@ -1,110 +1,78 @@
 """
-Module that segment colonies from well images
+Module related to segmentation of colonies
 """
 
-######################################
 # imports
 import numpy as np
-from ..extras import preprocess_images
-import scipy.ndimage as ndi
+from skimage.filters import threshold_multiotsu
 import skimage as ski
+import scipy.ndimage as ndi
 
-######################################
-# Define helper functions
+########################################
+# define functions
+def apply_treshold(image: np.ndarray, threshold: float) -> np.ndarray:
+    """
+    Function that returns a binary image given a treshold
 
-def create_circular_mask(h, w, center=None, radius=None):
+    Args:
+        image (np.ndarray): preprocessed grayscale image
+        threshold (float): treshold value
+    Return (np.ndarray):
+        binary image comparin each pixel if it is > treshold 
+    """
+    return (image > threshold)
+
+def multiotsu_tresholding(image:np.ndarray) -> int:
+    """
+    Function that applies multiotsu tresholding separeting in two classes
+    from a grayscale image
+
+    Args:
+        image (np.ndarray): preprocessed grayscale image
+    Return (int):
+        multiotsu treshold
+    """
+    return threshold_multiotsu(image, 2)[0]
+
+def create_circular_mask(shape: tuple[int, int], center:tuple[int, int] = None, radius:int = None) -> np.ndarray:
+    """
+    Function that creates a circular mask
+    Args:
+        shape (tuple[int, int]): the shape of the resulting image
+        center (tuple[int, int]): center of the circle mask
+        radius (int): radius of the circle mask
+    Return (np.ndarray)
+        Array of binary image that is true inside the circle defined and false outside it.
+    """
     if center is None: # Use the middle of the image
-        center = (int(w/2), int(h/2))
+        center = (int(shape[1]/2), int(shape[0]/2))
     if radius is None: # Use the smallest distance to the edge
-        radius = min(center[0], center[1], w-center[0], h-center[1])
+        radius = min(center[0], center[1], shape[1]-center[1], shape[0]-center[0])
 
     # Generate coordinate grids
-    Y, X = np.ogrid[:h, :w]
+    Y, X = np.ogrid[:shape[0], :shape[1]:]
     
     # Calculate squared distance from center
-    dist_from_center = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
+    dist_from_center = np.sqrt((X - center[1])**2 + (Y - center[0])**2)
 
     # Return boolean mask (True inside circle, False outside)
     return dist_from_center <= radius
 
-def remove_border_colonies(labels : np.ndarray,
-                           shrink : float) -> np.ndarray:
-    """
-    Function that removes colonies touching the border 
-    of the defined mask
-    """
-    radius = int((min(labels.shape[0], labels.shape[1]) // 2) * (1 - shrink))
-    mask = create_circular_mask(labels.shape[0], labels.shape[1],
-                                radius=radius)
-
-    border = mask ^ ski.morphology.erosion(mask)
-
-    border_labels = np.unique(
-        labels[border]
-    )
-
-    border_labels = border_labels[
-        border_labels > 0
-    ]
-
-    labels_final = labels.copy()
-
-    labels_final[
-        np.isin(labels_final, border_labels)
-    ] = 0
-
-    return labels_final
-
-def binary_segmentation(image  : np.ndarray,
-                        shrink : float = 0.03,
-                        preprocessed: bool = False,
-                        threshold_method: str = "otsu",
-                        threshold_value: float = None) -> np.ndarray:
-    """
-    Function that does the binary colonies segmentation.
-
-    Args:
-        image: Raw or preprocessed image.
-        shrink: Fraction used to compute the circular mask.
-        preprocessed: If True, the input image is already preprocessed.
-    """
-    if preprocessed:
-        preprocessed_image = image
-    else:
-        preprocessed_image = preprocess_images(image)
-
-    # create a circular mask
-    radius = int((min(preprocessed_image.shape[0], preprocessed_image.shape[1]) // 2) * (1 - shrink))
-    mask = create_circular_mask(preprocessed_image.shape[0], preprocessed_image.shape[1], radius=radius)
-    masked = np.zeros_like(preprocessed_image)
-    masked[mask] = preprocessed_image[mask]
-
-    # calculate the threshold using only the masked region
-    if not np.any(mask):
-        threshold = 0
-    else:
-        if threshold_method == "manual" and threshold_value is not None:
-            threshold = float(threshold_value)
-        elif threshold_method == "multi":
-            # use two classes to obtain a single threshold from multi otsu
-            thr = ski.filters.threshold_multiotsu(masked[mask], classes=2)
-            threshold = thr[0] if len(thr) > 0 else ski.filters.threshold_otsu(masked[mask])
-        else:
-            threshold = ski.filters.threshold_otsu(masked[mask])
-
-    # make binary segmentation
-    return masked > threshold
-
-
-def watershed_from_binary(binary: np.ndarray,
+def automatic_separation(binary:np.ndarray,
                          min_distance: int = 10,
                          threshold_rel: float = 0.06) -> np.ndarray:
     """
-    Given a binary mask, run distance-transform based watershed and return labels.
+    Function that given a binary image separate its masks
+    Args:
+        binary (np.ndarray): Binary image
+        min_distance (int): Min distance for colony separation
+        threshold_rel (float): peak detection parameter
+    Return (np.ndarray): Separated labels image
     """
-    # prepare for watershed
+    # Fill holes inside binary objects so watershed works on solid regions
     filled = ndi.binary_fill_holes(binary)
 
+    # Remove small artifacts and smooth object boundaries
     opened = ski.morphology.opening(
         filled,
         ski.morphology.disk(2)
@@ -114,8 +82,10 @@ def watershed_from_binary(binary: np.ndarray,
         ski.morphology.disk(2)
     )
 
+    # Compute distance transform from object boundaries
     distance = ndi.distance_transform_edt(closed)
 
+    # Detect local maxima in the distance map as watershed markers
     coords = ski.feature.peak_local_max(
         distance,
         min_distance=min_distance,
@@ -126,31 +96,16 @@ def watershed_from_binary(binary: np.ndarray,
     for i, (r, c) in enumerate(coords, start=1):
         markers[r, c] = i
 
+    # Apply watershed to separate touching objects using the distance peaks
     labels = ski.segmentation.watershed(
         -distance,
         markers,
         mask=closed,
     )
 
-    return labels
-
-def automatic_segmentation( image: np.ndarray,
-                            shrink: float = 0.03,
-                            threshold_method: str = "otsu",
-                            threshold_value: float = None) -> np.ndarray:
-    """
-    Automatic segmentation using threshhold and
-    watershed separation
-    """
-    binary = binary_segmentation(image, shrink, preprocessed=False,
-                                 threshold_method=threshold_method,
-                                 threshold_value=threshold_value)
-
-    labels = watershed_from_binary(binary)
-
-    # merge surrounded colonies
     labels_merged = labels.copy()
 
+    # Merge small enclosed regions back into neighboring labels if needed
     for lab in np.unique(labels_merged):
 
         if lab == 0:
@@ -175,7 +130,7 @@ def automatic_segmentation( image: np.ndarray,
         if 0 in neighbors:
             continue
 
-        # Fully enclosed by exactly one colony
+        # Only consider regions fully enclosed by exactly one neighbor
         if len(neighbors) != 1:
             continue
 
@@ -187,56 +142,57 @@ def automatic_segmentation( image: np.ndarray,
             labels_merged == surround_label
         )
 
-        # optional safety criterion
+        # Merge very small internal regions into the surrounding object
         if area_region < 0.3 * area_surround:
 
             labels_merged[
                 labels_merged == lab
             ] = surround_label
     
-    # remove touching border colonies
-    labels_final = remove_border_colonies(labels_merged, shrink)
+    return labels_merged
+
+def reference_separation(binary:np.ndarray,
+                         reference: np.ndarray) -> np.ndarray:
+    """
+    Function that given a binary mask and reference labels
+    adjust the morphology from the reference to the binary mask
+    
+    Args:
+        binary (np.ndarray): binary image
+        reference (np.ndarray): reference labels
+    Returns:
+        Reference labels with adjusted morphology 
+    """
+    return np.where(binary, reference, 0)
+
+def remove_border_colonies(labels:np.ndarray,
+                           mask:np.ndarray) -> np.ndarray:
+    """
+    Function that given a mask and labels paint black (0) all labels
+    that have at least one pixel touching the mask.
+    """
+    # Identify the border pixels of the mask by XORing the mask with
+    # its eroded version. This leaves only the boundary pixels.
+    border = mask ^ ski.morphology.erosion(mask)
+
+    # Gather the unique label ids that appear on the border positions.
+    border_labels = np.unique(
+        labels[border]
+    )
+
+    # Exclude the background label (0) from the list of border labels.
+    border_labels = border_labels[
+        border_labels > 0
+    ]
+
+    # Create a copy of the label image to preserve the input array.
+    labels_final = labels.copy()
+
+    # Set all border-touching labeled objects to background (0).
+    labels_final[
+        np.isin(labels_final, border_labels)
+    ] = 0
 
     return labels_final
-
-def reference_segmentation(image : np.ndarray,
-                           reference_labels : np.ndarray,
-                           shrink : float = 0.97) -> np.ndarray:
-    
-    """
-    Function that runs segmentation from reference labels.
-    The input image is preprocessed before computing the binary mask.
-    """
-
-    preprocessed = preprocess_images(image)
-    binary = binary_segmentation(image=preprocessed, shrink=shrink, preprocessed=True)
-
-    # Ensure reference labels match binary mask shape. If not, resize using
-    # nearest-neighbor interpolation (preserve integer labels).
-    ref = reference_labels
-    if getattr(ref, "ndim", 0) > 2:
-        # If multi-channel, take the first channel which is commonly used for labels
-        ref = ref[..., 0]
-
-    # If shapes differ, center-crop or center-pad the reference labels to match
-    if ref.shape != binary.shape:
-        th, tw = binary.shape
-        rh, rw = ref.shape
-
-        # If reference is larger -> crop center
-        if rh >= th and rw >= tw:
-            start_y = (rh - th) // 2
-            start_x = (rw - tw) // 2
-            ref_matched = ref[start_y:start_y + th, start_x:start_x + tw]
-        else:
-            # reference is smaller in at least one dimension -> pad centered
-            ref_matched = np.zeros(binary.shape, dtype=ref.dtype)
-            start_y = max((th - rh) // 2, 0)
-            start_x = max((tw - rw) // 2, 0)
-            ref_matched[start_y:start_y + rh, start_x:start_x + rw] = ref
-
-        return np.where(binary, ref_matched, 0)
-
-    return np.where(binary, ref, 0)
 
 # end of current module

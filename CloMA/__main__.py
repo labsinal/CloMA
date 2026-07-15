@@ -101,7 +101,7 @@ def segment_images(
     Segment colonies from an image using automatic or reference mode.
     Run this on the raw images, not preprocessed ones
     """
-    import CloMA.segmentation.new_segmentation as seg
+    import CloMA.segmentation as seg
     from pathlib import Path
 
     # open image as array
