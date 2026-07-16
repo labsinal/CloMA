@@ -6,7 +6,7 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 
 from ._preprocessing_tab import PreprocessingTab
 from ._segmentation_tab import SegmentationTab
-# from ._features_tab import FeatureExtractionTab
+from ._features_tab import FeaturesTab
 
 # Create widget Class
 class CloMAWidget(QWidget):
@@ -33,10 +33,10 @@ class CloMAWidget(QWidget):
             "Segmentation",
         )
 
-        # tabs.addTab(
-        #     FeatureExtractionTab(viewer),
-        #     "Feature Extraction",
-        # )
+        tabs.addTab(
+            FeaturesTab(self.viewer),
+            "Feature Extraction",
+        )
 
         # Stack widgets vertically
         layout = QVBoxLayout()
