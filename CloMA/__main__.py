@@ -101,46 +101,26 @@ def segment_images(
     Segment colonies from an image using automatic or reference mode.
     Run this on the raw images, not preprocessed ones
     """
-    import CloMA.segmentation as seg
+    import CloMA.segmentation as run_segmentation
     from pathlib import Path
 
     # open image as array
     image = _read_image(img)
 
-    # check if image is grayscale
-
-
-    # if preprocess is set to true, run preprocessment
-    if preprocess:
-        from CloMA.extras import preprocess_images
-        image = preprocess_images(image, invert)
-
-    # Calculate treshold
-    tresh = seg.multiotsu_tresholding(image) if treshold is None else treshold
-
-    binary = seg.apply_treshold(image, tresh)
-
-
-    # Create mask
-    mask = seg.create_circular_mask(image.shape, radius=image.shape[0] / 2 * circle_mask)
-    binary = np.where(mask, binary, 0)
-
-
-    # Separate masks into labels
-    if reference is None:
-        labels = seg.automatic_separation(binary)
-
-    else:
-        labels = seg.reference_separation(binary, _read_image(reference))
-    
-    # remove border colonies
-    if remove_border:
-        final_labels = seg.remove_border_colonies(labels, mask)
+    # Create labels
+    labels = run_segmentation(image,
+                              treshold,
+                              circle_mask,
+                              reference,
+                              remove_border,
+                              preprocess,
+                              invert
+                              )
 
     # create output name    
     out_name = _make_output_path(output, f"seg_{Path(img).stem}.tif")
     # export image
-    imwrite(out_name, final_labels)
+    imwrite(out_name, labels)
 
 
 @app.command()

@@ -7,6 +7,7 @@ import numpy as np
 from skimage.filters import threshold_multiotsu
 import skimage as ski
 import scipy.ndimage as ndi
+import cv2
 
 ########################################
 # define functions
@@ -195,4 +196,50 @@ def remove_border_colonies(labels:np.ndarray,
 
     return labels_final
 
+def run_segmentation(
+    image: np.ndarray,
+    threshold: int = None,
+    circle_mask: float = 0.97,
+    reference: np.ndarray = None,
+    remove_border: bool= True,
+    preprocess: bool = False,
+    invert: bool = True
+) -> np.ndarray:
+    """
+    Segment colonies from an image using automatic or reference mode.
+    Run this on the raw images, not preprocessed ones
+    """
+    from pathlib import Path
+
+    # if preprocess is set to true, run preprocessment
+    if preprocess:
+        from CloMA.extras import preprocess_images
+        image = preprocess_images(image, invert)
+
+    # check if image is grayscale
+    if (len(image.shape) > 2):
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Calculate threshold
+    tresh = multiotsu_tresholding(image) if threshold is None else threshold
+
+    binary = apply_treshold(image, tresh)
+
+    # Create mask
+    mask = create_circular_mask(image.shape, radius=image.shape[0] / 2 * circle_mask)
+    binary = np.where(mask, binary, 0)
+
+    # Separate masks into labels
+    if reference is None:
+        labels = automatic_separation(binary)
+
+    else:
+        labels = reference_separation(binary, reference)
+    
+    # remove border colonies
+    if remove_border:
+        final_labels = remove_border_colonies(labels, mask)
+
+    # create return labels
+    return final_labels    
 # end of current module

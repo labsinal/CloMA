@@ -1,1 +1,1 @@
-from CloMA.segmentation.segmentation import *
+from CloMA.segmentation.segmentation import run_segmentation, create_circular_mask

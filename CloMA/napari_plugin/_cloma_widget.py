@@ -5,7 +5,7 @@ Module to create CloMA and Napari integration widget
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 
 from ._preprocessing_tab import PreprocessingTab
-# from ._segmentation_tab import SegmentationTab
+from ._segmentation_tab import SegmentationTab
 # from ._features_tab import FeatureExtractionTab
 
 # Create widget Class
@@ -28,10 +28,10 @@ class CloMAWidget(QWidget):
             "Preprocessing",
         )
 
-        # tabs.addTab(
-        #     SegmentationTab(viewer),
-        #     "Segmentation",
-        # )
+        tabs.addTab(
+            SegmentationTab(self.viewer),
+            "Segmentation",
+        )
 
         # tabs.addTab(
         #     FeatureExtractionTab(viewer),
