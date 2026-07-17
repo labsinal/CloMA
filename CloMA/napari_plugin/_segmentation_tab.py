@@ -5,7 +5,6 @@ Segmentation tab for the CloMA napari plugin.
 # Imports
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
-    QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
@@ -20,8 +19,9 @@ from CloMA.segmentation import (
     create_circular_mask,
 )
 
+from CloMA.napari_plugin._cloma_tab import CloMATab
 
-class SegmentationTab(QWidget):
+class SegmentationTab(CloMATab):
     """
     Segmentation tab of the CloMA plugin.
 
@@ -34,10 +34,7 @@ class SegmentationTab(QWidget):
     def __init__(self, napari_viewer):
         """Create the segmentation tab."""
 
-        super().__init__()
-
-        # Store napari viewer
-        self.viewer = napari_viewer
+        super().__init__(napari_viewer)
 
         # Preview layer (created only once)
         self.preview_layer = None
@@ -83,6 +80,15 @@ class SegmentationTab(QWidget):
 
         self.gui = magicgui(
             self.run_segmentation,
+
+            image={
+                "choices": self.get_image_layers,
+            },
+
+            reference={
+                "choices": self.get_label_layers,
+            },
+
             call_button="Run Segmentation",
 
             circle_mask={
@@ -92,6 +98,8 @@ class SegmentationTab(QWidget):
                 "step": 0.01,
             },
         )
+
+        self.register_layer_widget(self.gui)
 
         ###############################################################
         # Live preview connections

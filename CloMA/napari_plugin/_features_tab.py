@@ -1,43 +1,25 @@
 """
 Features tab for the CloMA napari plugin.
 """
-
-# Qt imports
 from qtpy.QtWidgets import (
-    QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
     QFileDialog,
     QTableView,
-    QLabel,
 )
-
-# Qt Core
-from qtpy.QtCore import (
-    Qt,
-)
-
-# MagicGUI
 from magicgui import magicgui
-
-# napari
 from napari.layers import (
     Image,
     Labels,
 )
-
-# pandas
 import pandas as pd
-
-# CloMA
+from CloMA.napari_plugin._cloma_tab import CloMATab
 from CloMA.feature_extraction import extract_features
-
-# Local imports
 from .pandas_model import PandasModel
 
 
-class FeaturesTab(QWidget):
+class FeaturesTab(CloMATab):
     """
     Feature extraction tab.
 
@@ -50,34 +32,28 @@ class FeaturesTab(QWidget):
     • export/import CSV files
     """
 
-    ####################################################################
-    # Constructor
-
     def __init__(self, napari_viewer):
 
-        super().__init__()
-
-        ###############################################################
-        # Napari viewer
-
-        self.viewer = napari_viewer
-
-        ###############################################################
-        # Internal variables
+        super().__init__(napari_viewer)
 
         self.df = None
         self.model = None
 
-        self.image_layer = None
-        self.labels_layer = None
-
-        ###############################################################
-        # Extraction GUI
-
         self.extract_gui = magicgui(
             self.run_feature_extraction,
+
+            labels={
+                "choices": self.get_label_layers,
+            },
+
+            image={
+                "choices": self.get_image_layers,
+            },
+
             call_button="Extract Features",
         )
+
+        self.register_layer_widget(self.extract_gui)
 
         ###############################################################
         # Buttons
@@ -145,10 +121,6 @@ class FeaturesTab(QWidget):
         """
         Extract colony features from the selected labels layer.
         """
-
-        # Store currently used layers
-        self.labels_layer = labels
-        self.image_layer = image
 
         # Extract features
         self.df = extract_features(
@@ -259,7 +231,7 @@ class FeaturesTab(QWidget):
             return
 
         # No labels layer available
-        if self.labels_layer is None:
+        if self.extract_gui.labels.value is None:
             return
 
         # Selected row in the current (possibly sorted) table
@@ -282,9 +254,10 @@ class FeaturesTab(QWidget):
 
         if "label" in colony.index:
 
-            self.labels_layer.selected_label = int(
-                colony["label"]
-            )
+            labels = self.extract_gui.labels.value
+
+            if labels is not None:
+                labels.selected_label = int(colony["label"])
 
         ###############################################################
         # Camera center
@@ -320,8 +293,7 @@ class FeaturesTab(QWidget):
         float
             Recommended camera zoom.
         """
-
-        image = self.image_layer
+        image = self.extract_gui.image.value
 
         if image is None:
             return None

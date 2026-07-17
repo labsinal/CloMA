@@ -2,28 +2,36 @@
 Preprocessing tab for the CloMA napari plugin.
 """
 # imports
-from qtpy.QtWidgets import QWidget, QVBoxLayout
+from qtpy.QtWidgets import QVBoxLayout
 from magicgui import magicgui
 from napari.layers import Image
 
+from CloMA.napari_plugin._cloma_tab import CloMATab
 from CloMA.extras import preprocess_images
 
 # Create PreprocessingTab class
-class PreprocessingTab(QWidget):
+class PreprocessingTab(CloMATab):
 
     # Define class constructor
     def __init__(self, napari_viewer):
-        super().__init__()
-        
-        # Get viewer
-        self.viewer = napari_viewer
+        super().__init__(napari_viewer)
 
         # Create the magicgui widget
         self.gui = magicgui(
             self.run_preprocessing,
+
+            image={
+                "choices": self.get_image_layers,
+            },
+
             call_button="Run preprocessing",
-            invert={"text": "Invert image"},
+
+            invert={
+                "text": "Invert image",
+            },
         )
+
+        self.register_layer_widget(self.gui)
 
         # Build the layout
         layout = QVBoxLayout()
